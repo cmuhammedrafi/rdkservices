@@ -1,26 +1,28 @@
-/**
-* If not stated otherwise in this file or this component's LICENSE
-* file the following copyright and licenses apply:
-*
-* Copyright 2020 RDK Management
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-* http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-**/
+
+/*
+ * If not stated otherwise in this file or this component's LICENSE file the
+ * following copyright and licenses apply:
+ *
+ * Copyright 2020 RDK Management
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 #pragma once
 
 #include <NetworkManager.h>
 #include <libnm/NetworkManager.h>
+#include "NetworkManagerLogger.h"
 #include "INetworkManager.h"
 #include <iostream>
 #include <glib.h>
@@ -35,64 +37,55 @@ namespace WPEFramework
     {
         class wifiManager
         {
-            public:
-                static wifiManager* getInstance()
-                {
-                    static wifiManager instance;
-                    return &instance;
-                }
+        public:
+            static wifiManager* getInstance()
+            {
+                static wifiManager instance;
+                return &instance;
+            }
 
-                bool isWifiConnected();
-                bool wifiDisconnect();
-                bool wifiConnectedSSIDInfo(Exchange::INetworkManager::WiFiSSIDInfo &ssidinfo);
-                bool wifiConnect(const char *ssid_in, const char* password_in, Exchange::INetworkManager::WIFISecurityMode security_in);
-                bool quit(NMDevice *wifiNMDevice);
-                //callbacks
-                static void wifiConnectCb(GObject *client, GAsyncResult *result, gpointer user_data);
-                static void wifiDisconnectCb(GObject *object, GAsyncResult *result, gpointer user_data);
-                static void connectGsignalCb(NMDevice *device, GParamSpec *pspec, wifiManager *info);
-                static void disconnectGsignalCb(NMDevice *device, GParamSpec *pspec, wifiManager *info);
+            bool isWifiConnected();
+            bool wifiDisconnect();
+            bool wifiConnectedSSIDInfo(Exchange::INetworkManager::WiFiSSIDInfo &ssidinfo);
+            bool wifiConnect(const char *ssid_in, const char* password_in, Exchange::INetworkManager::WIFISecurityMode security_in);
+            bool quit(NMDevice *wifiNMDevice);
+            bool wait(GMainLoop *loop);
+        private:
+            NMDevice *getNmDevice();
 
-            private:
-                NMDevice *getNmDevice();
-
-            private:
-                // Private constructor and destructor
-                wifiManager() : client(nullptr), loop(nullptr), create(false) {
-                    GError *error = NULL;
-                    loop = g_main_loop_new(NULL, FALSE);
-                    client = nm_client_new(NULL, &error);
-                    if (!client || !loop) {
-                        g_message("Error: Could not connect to NetworkManager: %s.", error->message);
-                        g_error_free(error);
-                    }
-                }
-                ~wifiManager() {
-                    NMLOG_TRACE("~wifiManager");
-                    // Clean up
+        private:
+            // Private constructor and destructor
+            wifiManager() : client(nullptr), loop(nullptr), create(false) {
+                loop = g_main_loop_new(NULL, FALSE);
+            }
+            ~wifiManager() {
+                // Clean up
+                NMLOG_TRACE("~wifiManager");
+                if(client != nullptr)
                     g_object_unref(client);
-                    nm_clear_g_cancellable(&cancellable);
-                    if (loop != NULL) {
-                        g_main_loop_unref(loop);
-                        loop = NULL;  // Set the pointer to NULL to avoid accidental reuse
-                    }
+                if (loop != NULL) {
+                    g_main_loop_unref(loop);
+                    loop = NULL;  // Set the pointer to NULL to avoid accidental reuse
                 }
+            }
 
-                // Delete copy constructor and assignment operator
-                wifiManager(wifiManager const&) = delete;
-                void operator=(wifiManager const&) = delete;
 
-            public:
-                NMClient *client;
-                GMainLoop *loop;
-                gboolean create;
-                GCancellable *cancellable;
-                static gboolean nm_clear_g_cancellable(GCancellable **cancellable);
-                guint wifiDeviceStateGsignal = 0;
+            // Delete copy constructor and assignment operator
+            wifiManager(wifiManager const&) = delete;
+            void operator=(wifiManager const&) = delete;
+
+            bool createClientNewConnection();
+
+        public:
+            NMClient *client;
+            GMainLoop *loop;
+            gboolean create;
+            const char* specific_object;
+            NMDevice *wifidevice;
+            guint wifiDeviceStateGsignal = 0;
         };
-    } // namespace Plugin
-} // namespace WPEFramework
-
+    }
+}
 /*
 ----------------ap flag----------------
 NM_802_11_AP_FLAGS_NONE    = 0x00000000,
@@ -100,7 +93,6 @@ NM_802_11_AP_FLAGS_PRIVACY = 0x00000001,
 NM_802_11_AP_FLAGS_WPS     = 0x00000002,
 NM_802_11_AP_FLAGS_WPS_PBC = 0x00000004,
 NM_802_11_AP_FLAGS_WPS_PIN = 0x00000008,
-
 -------------------------ap_wpa_flags----------------
 NM_802_11_AP_SEC_NONE                     = 0x00000000,
 NM_802_11_AP_SEC_PAIR_WEP40               = 0x00000001,
