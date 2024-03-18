@@ -237,7 +237,7 @@ namespace WPEFramework {
 
     static bool curlVerboseEnabled() {
         std::ifstream fileStream("/tmp/network.plugin.debug");
-        return fileStream.is_open();
+        return true;
     }
 
     static long current_time ()
@@ -333,8 +333,8 @@ namespace WPEFramework {
                         }
                     }
                 }
-                //else
-                //    LOGERR("endpoint = <%s> error = %d (%s)", endpoint, msg->data.result, curl_easy_strerror(msg->data.result));
+                else
+                    LOGERR("endpoint = <%s> error = %d (%s)", endpoint, msg->data.result, curl_easy_strerror(msg->data.result));
                 http_responses.push_back(response_code);
             }
             time_earlier = time_now;
