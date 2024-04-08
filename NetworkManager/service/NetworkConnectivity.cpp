@@ -12,6 +12,11 @@
 #include <atomic>
 #include <mutex>
 #include <curl/curl.h>
+#include <iostream>
+#include <netdb.h>
+#include <arpa/inet.h>
+#include <cstring>
+
 #include "Module.h"
 #include "NetworkConnectivity.h"
 #include "NetworkManagerImplementation.h"
@@ -63,6 +68,131 @@ namespace WPEFramework {
             NMLOG_ERROR("Failed to open connectivity endpoint cache file");
         }
         return readStrings;
+    }
+
+    resolveIP::resolveIP(const std::string url)
+    {
+        if (url.empty())
+            perror("url is empty");
+        else
+            mHostname = getHostnameFromUrl(url);
+        getHostIP(mHostname);
+    }
+
+    std::string resolveIP::getHostnameFromUrl(const std::string& url)
+    {
+        size_t startPos = url.find("://");
+        if(startPos == std::string::npos)
+            startPos = 0;
+        else
+            startPos += 3;
+
+        size_t endPos = url.find("/", startPos);
+        if(endPos == std::string::npos)
+            endPos = url.length();
+
+        return url.substr(startPos, endPos - startPos);
+    }
+
+    bool resolveIP::getHostIP(std::string hostname)
+    {
+        struct addrinfo hints, *res;
+        int errcode;
+        char addrstr[100];
+        void *ptr;
+
+        memset (&hints, 0, sizeof (hints));
+        hints.ai_family = PF_UNSPEC;
+        /*
+        * PF_UNSPEC   Unspecified.
+        * PF_INET IP protocol family. ipv4
+        * PF_INET6 IP version 6.
+        */
+        hints.ai_socktype = SOCK_STREAM;
+        hints.ai_flags |= AI_CANONNAME;
+
+        errcode = getaddrinfo (hostname.c_str(), NULL, &hints, &res);
+        if (errcode != 0)
+        {
+            NMLOG_ERROR("getaddrinfo");
+            isResolveSuccess = false;
+            return isResolveSuccess;
+        }
+
+        NMLOG_INFO("Host: %s ", hostname.c_str());
+
+        if(res == NULL)
+        {
+            perror ("getaddrinfo res error");
+            isResolveSuccess = false;
+            return isResolveSuccess;
+        }
+
+        while (res)
+        {
+            inet_ntop (res->ai_family, res->ai_addr->sa_data, addrstr, 100);
+
+            switch (res->ai_family)
+            {
+            case AF_INET:
+                ptr = &((struct sockaddr_in *) res->ai_addr)->sin_addr;
+                inet_ntop (res->ai_family, ptr, addrstr, 100);
+                mIPv4Address.push_back(addrstr);
+                break;
+            case AF_INET6:
+                ptr = &((struct sockaddr_in6 *) res->ai_addr)->sin6_addr;
+                inet_ntop (res->ai_family, ptr, addrstr, 100);
+                mIPv6Address.push_back(addrstr);
+                break;
+            }
+
+            NMLOG_TRACE("IPv %s address: %s \n", (res->ai_family == PF_INET6 ? "6" : "4"), addrstr);
+            res = res->ai_next;
+        }
+
+        isResolveSuccess = true;
+
+        if(mIPv4Address.size() > 0 && mIPv6Address.size() > 0)
+            resolvedIPType = NSM_IPRESOLVE_WHATEVER;
+        else if(mIPv4Address.size() > 0)
+            resolvedIPType = NSM_IPRESOLVE_V4;
+        else if(mIPv6Address.size() > 0)
+            resolvedIPType = NSM_IPRESOLVE_V6;
+        else
+            isResolveSuccess = false;
+
+        return isResolveSuccess;
+    }
+
+    bool resolveIP::isIPresoleved()
+    {
+        return isResolveSuccess;
+    }
+
+    nsm_ipversion resolveIP::getIPaddressType()
+    {
+        if(isResolveSuccess)
+            return resolvedIPType;
+        else
+            return NSM_IPRESOLVE_WHATEVER;
+    }
+
+    std::vector<std::string> resolveIP::getIPv4address()
+    {
+        if(isResolveSuccess)
+            return mIPv4Address;
+
+        std::vector<std::string> tmpIPv4Address;
+        return tmpIPv4Address;
+    }
+
+    std::vector<std::string> resolveIP::getIPv6address()
+    {
+        if(isResolveSuccess)
+            return mIPv6Address;
+
+        std::vector<std::string> tmpIPv6Address;
+        return tmpIPv6Address;
     }
 
     void Connectivity::loadConnectivityConfig(const std::string& configFilePath)
@@ -282,6 +412,7 @@ namespace WPEFramework {
                 NMLOG_ERROR("endpoint = <%s> curl_easy_init returned NULL", endpoint.c_str());
                 continue;
             }
+            resolveIP resolve(endpoint.c_str());
             curl_easy_setopt(curl_easy_handle, CURLOPT_URL, endpoint.c_str());
             curl_easy_setopt(curl_easy_handle, CURLOPT_PRIVATE, endpoint.c_str());
             /* set our custom set of headers */

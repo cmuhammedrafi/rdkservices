@@ -9,6 +9,10 @@
 #include <mutex>
 #include "Module.h"
 #include "NetworkManagerLogger.h"
+#include <iostream>
+#include <netdb.h>
+#include <arpa/inet.h>
+#include <cstring>
 
 #define CAPTIVEPORTAL_MAX_LEN 512
 #define DEFAULT_MONITOR_TIMEOUT 60 // in seconds
@@ -62,6 +66,28 @@ namespace WPEFramework {
                 ~EndpointCache(){}
 
                 std::string CachefilePath;
+        };
+
+        class resolveIP
+        {
+        public:
+            resolveIP(const std::string url);
+            ~resolveIP(){};
+
+            bool isIPresoleved();
+            nsm_ipversion getIPaddressType();
+            std::vector<std::string> getIPv4address();
+            std::vector<std::string> getIPv6address();
+
+        private:
+            std::string getHostnameFromUrl(const std::string& url);
+            bool getHostIP(std::string hostname);
+
+            std::string mHostname;
+            std::vector<std::string> mIPv4Address;
+            std::vector<std::string> mIPv6Address;
+            nsm_ipversion resolvedIPType;
+            bool isResolveSuccess;
         };
 
         class Connectivity {
