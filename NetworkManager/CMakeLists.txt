@@ -54,6 +54,10 @@ file(GLOB PROXY_STUB_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/generated/ProxyStubs*.
 message("Setup ${PROJECT_NAME} v${PROJECT_VERSION}")
 
 set(PLUGIN_NETWORKMANAGER_LOGLEVEL "5" CACHE STRING "To configure default loglevel NetworkManager plugin")
+set(PLUGIN_NETWORKMANAGER_CONN_MONITOR_ENDPOINT_1 "http://clients3.google.com/generate_204" CACHE STRING "To configure default connectivity monitor endpoint")
+set(PLUGIN_NETWORKMANAGER_CAPTIVE_ENDPOINT_1 "http://clients3.google.com/generate_204" CACHE STRING "To configure default captive portal endpoint")
+set(PLUGIN_NETWORKMANAGER_STUN_ENDPOINT "stun.l.google.com" CACHE STRING "To configure default stdun endpoint")
+set(PLUGIN_NETWORKMANAGER_STUN_PORT "19302" CACHE STRING "To configure default stun server port")
 
 
 include_directories(${PROJECT_SOURCE_DIR})

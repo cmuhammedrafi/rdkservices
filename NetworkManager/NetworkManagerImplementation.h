@@ -54,43 +54,48 @@ namespace WPEFramework
             Config& operator=(const Config&);
 
         public:
-            class Connectivity : public Core::JSON::Container {
+            class ConnectivityConf : public Core::JSON::Container {
             public:
-                Connectivity& operator=(const Connectivity&) = delete;
+                ConnectivityConf& operator=(const ConnectivityConf&) = delete;
 
-                Connectivity()
+                ConnectivityConf()
                     : Core::JSON::Container()
-                    , endpoint_1(_T("http://clients3.google.com/generate_204"))
-                    , endpoint_2(_T(""))
-                    , endpoint_3(_T(""))
-                    , endpoint_4(_T(""))
-                    , endpoint_5(_T(""))
-                    , ConnectivityCheckInterval(6)
+                    , captiveEnpt1(_T("http://clients3.google.com/generate_204"))
+                    , connMonitorEnpt1(_T("google.com"))
+                    , connMonitorTimeOut(60)
                 {
-                    Add(_T("endpoint_1"), &endpoint_1);
-                    Add(_T("endpoint_2"), &endpoint_2);
-                    Add(_T("endpoint_3"), &endpoint_3);
-                    Add(_T("endpoint_4"), &endpoint_4);
-                    Add(_T("endpoint_5"), &endpoint_5);
-                    Add(_T("interval"), &ConnectivityCheckInterval);
+                    Add(_T("captiveEnpt1"), &captiveEnpt1);
+                    Add(_T("captiveEnpt2"), &captiveEnpt2);
+                    Add(_T("captiveEnpt3"), &captiveEnpt3);
+                    Add(_T("connMonitorEnpt1"), &connMonitorEnpt1);
+                    Add(_T("connMonitorEnpt2"), &connMonitorEnpt2);
+                    Add(_T("connMonitorEnpt3"), &connMonitorEnpt3);
+                    Add(_T("connMonitorEnpt4"), &connMonitorEnpt4);
+                    Add(_T("connMonitorEnpt5"), &connMonitorEnpt5);
+                    Add(_T("connMonitorinterval"), &connMonitorTimeOut);
                 }
-                ~Connectivity() override = default;
+                ~ConnectivityConf() override = default;
 
             public:
                 /* connectivity configuration */
-                Core::JSON::String endpoint_1;
-                Core::JSON::String endpoint_2;
-                Core::JSON::String endpoint_3;
-                Core::JSON::String endpoint_4;
-                Core::JSON::String endpoint_5;
-                Core::JSON::DecUInt32 ConnectivityCheckInterval;
+                /* captive monitor endpoints */
+                Core::JSON::String captiveEnpt1;
+                Core::JSON::String captiveEnpt2;
+                Core::JSON::String captiveEnpt3;
+                /* connectivity monitor endpoint */
+                Core::JSON::String connMonitorEnpt1;
+                Core::JSON::String connMonitorEnpt2;
+                Core::JSON::String connMonitorEnpt3;
+                Core::JSON::String connMonitorEnpt4;
+                Core::JSON::String connMonitorEnpt5;
+                Core::JSON::DecUInt32 connMonitorTimeOut;
             };
 
-            class Stun : public Core::JSON::Container {
+            class StunConf : public Core::JSON::Container {
                 public:
-                    Stun& operator=(const Stun&) = delete;
+                    StunConf& operator=(const StunConf&) = delete;
 
-                    Stun()
+                    StunConf()
                         : Core::JSON::Container()
                         , stunEndpoint(_T("stun.l.google.com"))
                         , port(19302)
@@ -100,7 +105,7 @@ namespace WPEFramework
                         Add(_T("port"), &port);
                         Add(_T("interval"), &interval);
                     }
-                    ~Stun() override = default;
+                    ~StunConf() override = default;
 
                 public:
                     /* stun configuration */
@@ -113,15 +118,15 @@ namespace WPEFramework
             Config()
                 : Core::JSON::Container()
                 {
-                    Add(_T("connectivity"), &connectivity);
-                    Add(_T("stun"), &stun);
+                    Add(_T("connectivity"), &connectivityConf);
+                    Add(_T("stun"), &stunConf);
                     Add(_T("loglevel"), &loglevel);
                 }
             ~Config() override = default;
 
         public:
-            Connectivity connectivity;
-            Stun stun;
+            ConnectivityConf connectivityConf;
+            StunConf stunConf;
             Core::JSON::DecUInt32 loglevel;
         };
 

@@ -35,6 +35,16 @@ namespace NetworkManagerLogger {
  * It is essental to start with 0 and increase w/o gaps as the value
  * can be used for indexing in a mapping table.
  */
+
+#define PROCESS_ID ::getpid()
+#if __GLIBC__ == 2 && __GLIBC_MINOR__ < 30
+#include <sys/syscall.h>
+#define TRACE_THREAD_ID syscall(SYS_gettid)
+#else
+#include <unistd.h>
+#define THREAD_ID ::gettid()
+#endif
+
 enum LogLevel {FATAL_LEVEL = 0, ERROR_LEVEL, WARNING_LEVEL, INFO_LEVEL, VERBOSE_LEVEL, TRACE_LEVEL};
 
 /**

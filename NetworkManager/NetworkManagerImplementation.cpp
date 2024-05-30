@@ -54,7 +54,7 @@ namespace WPEFramework
 
         NetworkManagerImplementation::~NetworkManagerImplementation()
         {
-            connectivityMonitor.stopContinuousConnectivityMonitoring();
+            connectivityMonitor.stopConnectivityMonitor();
             LOG_ENTRY_FUNCTION();
         }
 
@@ -101,11 +101,11 @@ namespace WPEFramework
         {
             if(configLine.empty())
             {
-                NMLOG_FATAL("config line : is empty !");
+                NMLOG_FATAL("NetworkManager.json string is empty !");
                 return(Core::ERROR_GENERAL);
             }
 
-            NMLOG_TRACE("config line : %s", configLine.c_str());
+           NMLOG_TRACE("NetworkManager.json :\n%s\n", configLine.c_str());
 
             Config config;
             if(config.FromString(configLine))
@@ -115,34 +115,58 @@ namespace WPEFramework
                 m_stunPort = config.stun.port.Value();
                 m_stunBindTimeout = config.stun.interval.Value();
 
-                NMLOG_TRACE("config : stun endpoint %s", m_stunEndPoint.c_str());
-                NMLOG_TRACE("config : stun port %d", m_stunPort);
-                NMLOG_TRACE("config : stun interval %d", m_stunBindTimeout);
+                std::vector<std::string> captiveEndpts;
+                std::vector<std::string> connectEndpts;
+                /* load captive portal monitor endpoints max 3 endpoint */
+                if(!config.connectivityConf.captiveEnpt1.Value().empty()) {
+                    NMLOG_TRACE("config : captiveEnpt 1 %s", config.connectivityConf.captiveEnpt1.Value().c_str());
+                    captiveEndpts.push_back(config.connectivityConf.captiveEnpt1.Value().c_str());
+                }
+                if(!config.connectivityConf.captiveEnpt2.Value().empty()) {
+                    NMLOG_TRACE("config : captiveEnpt 2 %s", config.connectivityConf.captiveEnpt2.Value().c_str());
+                    captiveEndpts.push_back(config.connectivityConf.captiveEnpt2.Value().c_str());
+                }
+                if(!config.connectivityConf.captiveEnpt3.Value().empty()) {
+                    NMLOG_TRACE("config : captiveEnpt 3 %s", config.connectivityConf.captiveEnpt3.Value().c_str());
+                    captiveEndpts.push_back(config.connectivityConf.captiveEnpt3.Value().c_str());
+                }
 
-                NMLOG_TRACE("config : endpoint 1 %s", config.connectivity.endpoint_1.Value().c_str());
-                NMLOG_TRACE("config : endpoint 2 %s", config.connectivity.endpoint_2.Value().c_str());
-                NMLOG_TRACE("config : endpoint 3 %s", config.connectivity.endpoint_3.Value().c_str());
-                NMLOG_TRACE("config : endpoint 4 %s", config.connectivity.endpoint_4.Value().c_str());
-                NMLOG_TRACE("config : endpoint 5 %s", config.connectivity.endpoint_5.Value().c_str());
-                NMLOG_TRACE("config : interval %d", config.connectivity.ConnectivityCheckInterval.Value());
+                connectivityMonitor.setCaptiveMonitorEndpoint(captiveEndpts);
+                /* load connectivity monitor endpoints max 5 endpoints */
+                if(!config.connectivityConf.connMonitorEnpt1.Value().empty()) {
+                    NMLOG_TRACE("config : connEnpt 1 %s", config.connectivityConf.connMonitorEnpt1.Value().c_str());
+                    connectEndpts.push_back(config.connectivityConf.connMonitorEnpt1.Value().c_str());
+                }
+                if(!config.connectivityConf.connMonitorEnpt2.Value().empty()) {
+                    NMLOG_TRACE("config : connEnpt 2 %s", config.connectivityConf.connMonitorEnpt2.Value().c_str());
+                    connectEndpts.push_back(config.connectivityConf.connMonitorEnpt2.Value().c_str());
+                }
+                if(!config.connectivityConf.connMonitorEnpt3.Value().empty()) {
+                    NMLOG_TRACE("config : connEnpt 3 %s", config.connectivityConf.connMonitorEnpt3.Value().c_str());
+                    connectEndpts.push_back(config.connectivityConf.connMonitorEnpt3.Value().c_str());
+                }
+                if(!config.connectivityConf.connMonitorEnpt4.Value().empty()) {
+                    NMLOG_TRACE("config : connEnpt 4 %s", config.connectivityConf.connMonitorEnpt4.Value().c_str());
+                    connectEndpts.push_back(config.connectivityConf.connMonitorEnpt4.Value().c_str());
+                }
+                if(!config.connectivityConf.connMonitorEnpt5.Value().empty()) {
+                    NMLOG_TRACE("config : connEnpt 5 %s", config.connectivityConf.connMonitorEnpt5.Value().c_str());
+                    connectEndpts.push_back(config.connectivityConf.connMonitorEnpt5.Value().c_str());
+                }
+
+                connectivityMonitor.setConnMonitorEndpoint(connectEndpts);
 
                 NMLOG_TRACE("config : loglevel %d", config.loglevel.Value());
                 logLevel = static_cast <NMLogging>(config.loglevel.Value());
                 // configure loglevel in libWPEFrameworkNetworkManagerImplementation.so
                 NetworkManagerLogger::SetLevel(static_cast <NetworkManagerLogger::LogLevel>(logLevel));
 
-                std::vector<std::string> endpoints;
-                endpoints.push_back(config.connectivity.endpoint_1.Value().c_str());
-                endpoints.push_back(config.connectivity.endpoint_2.Value().c_str());
-                endpoints.push_back(config.connectivity.endpoint_3.Value().c_str());
-                endpoints.push_back(config.connectivity.endpoint_4.Value().c_str());
-                endpoints.push_back(config.connectivity.endpoint_5.Value().c_str());
-
-                //set connectivity endpoint
-                connectivityMonitor.setConnectivityMonitorEndpoints(endpoints);
             }
             else
-                NMLOG_ERROR("Plugin configuration read error !");
+            {
+                NMLOG_FATAL("NetworkManager.json parse error !");
+                return(Core::ERROR_GENERAL);
+            }
 
             return(Core::ERROR_NONE);
         }
@@ -194,7 +218,7 @@ namespace WPEFramework
                 {
                     tmpEndPoints.push_back(endPoint);
                 }
-                connectivityMonitor.setConnectivityMonitorEndpoints(tmpEndPoints);
+                connectivityMonitor.setConnMonitorEndpoint(tmpEndPoints);
             }
             return Core::ERROR_NONE;
         }
@@ -210,7 +234,7 @@ namespace WPEFramework
             else if(0 == strcasecmp("IPv6", ipversion.c_str()))
                 tmpVersion = NSM_IPRESOLVE_V6;
 
-            isconnected = connectivityMonitor.getInternetConnectionState(tmpVersion);
+            isconnected = connectivityMonitor.getInternetState(tmpVersion);
             if (FULLY_CONNECTED == isconnected)
                 result = INTERNET_FULLY_CONNECTED;
             else if (CAPTIVE_PORTAL == isconnected)
@@ -235,7 +259,7 @@ namespace WPEFramework
         uint32_t NetworkManagerImplementation::StartConnectivityMonitoring(const uint32_t interval/* @in */)
         {
             LOG_ENTRY_FUNCTION();
-            if (connectivityMonitor.doContinuousConnectivityMonitoring(interval))
+            if (connectivityMonitor.startConnectivityMonitor(interval))
                 return Core::ERROR_NONE;
             else
                 return Core::ERROR_GENERAL;
@@ -245,7 +269,7 @@ namespace WPEFramework
         uint32_t NetworkManagerImplementation::StopConnectivityMonitoring(void) const
         {
             LOG_ENTRY_FUNCTION();
-            if (connectivityMonitor.stopContinuousConnectivityMonitoring())
+            if (connectivityMonitor.stopConnectivityMonitor())
                 return Core::ERROR_NONE;
             else
                 return Core::ERROR_GENERAL;

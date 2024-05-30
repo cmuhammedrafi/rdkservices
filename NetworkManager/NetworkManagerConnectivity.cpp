@@ -1,25 +1,51 @@
-#include <unistd.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <string>
-#include <fstream>
-#include <algorithm>
-#include <time.h>
-#include <vector>
-#include <thread>
-#include <chrono>
-#include <condition_variable>
-#include <atomic>
-#include <mutex>
+/*
+ * If not stated otherwise in this file or this component's LICENSE file the
+ * following copyright and licenses apply:
+ *
+ * Copyright 2020 RDK Management
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include <curl/curl.h>
-#include "Module.h"
+#include <resolv.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <stdbool.h>
+#include <fstream>
+
 #include "NetworkManagerConnectivity.h"
+#include "NetworkManagerLogger.h"
 #include "NetworkManagerImplementation.h"
 
-namespace WPEFramework {
-    namespace Plugin {
+namespace WPEFramework
+{
+    namespace Plugin
+    {
 
-    extern NetworkManagerImplementation* _instance;
+   extern NetworkManagerImplementation* _instance;
+
+    static const char* getInternetStateString(nsm_internetState state) {
+            switch(state)
+            {
+                case UNKNOWN: return "UNKNOWN";
+                case NO_INTERNET: return "NO_INTERNET";
+                case LIMITED_INTERNET: return "LIMITED_INTERNET";
+                case CAPTIVE_PORTAL: return "CAPTIVE_PORTAL";
+                case FULLY_CONNECTED: return "FULLY_CONNECTED";
+                default: return "Unknown string";
+            }
+        }
 
     bool EndpointCache::isEndpointCashFileExist()
     {
@@ -37,7 +63,6 @@ namespace WPEFramework {
                 outputFile << str << '\n';
             }
             outputFile.close();
-            NMLOG_INFO("Connectivity endpoints successfully written to a file");
         }
         else
         {
@@ -65,110 +90,19 @@ namespace WPEFramework {
         return readStrings;
     }
 
-    bool ConnectivityMonitor::isConnectivityMonitorEndpointSet()
+    TestConnectivity::TestConnectivity(const std::vector<std::string>& endpoints, long timeout_ms, bool headReq, nsm_ipversion ipversion)
     {
-        const std::lock_guard<std::mutex> lock(endpointMutex);
-        if(monitorEndpoints.size() > 0)
-        {
-            return true;
-        }
-        else if(endpointCache.isEndpointCashFileExist())
-        {
-            monitorEndpoints = endpointCache.readEnpointsFromFile();
-            std::string endpoints_str;
-            for (const auto& endpoint : monitorEndpoints)
-                endpoints_str.append(endpoint).append(" ");
-            NMLOG_INFO("updated endpoints count %d and endpoints:- %s", static_cast<int>(monitorEndpoints.size()), endpoints_str.c_str());
-            if(monitorEndpoints.size() > 0)
-                return true;
-        }
-        return false;
-    }
-
-    bool ConnectivityMonitor::isConnectedToInternet(nsm_ipversion ipversion)
-    {
-        if (nsm_internetState::FULLY_CONNECTED == getInternetConnectionState(ipversion))
-        {
-            NMLOG_INFO("isConnectedToInternet = true");
-            return true;
+        internetSate = UNKNOWN;
+        if(endpoints.size() < 1) {
+            NMLOG_ERROR("Endpoints size error ! curl check not possible");
+            return;
         }
 
-        NMLOG_WARNING("isConnectedToInternet = false");
-        return false;
-    }
-
-    nsm_internetState ConnectivityMonitor::getInternetConnectionState(nsm_ipversion ipversion)
-    {
-
-        nsm_internetState internetState = nsm_internetState::UNKNOWN;
-
-        // If monitor connectivity is running take the cashe value
-        if ( isMonitorThreadRunning() && (ipversion == NSM_IPRESOLVE_WHATEVER) && (g_internetState != nsm_internetState::UNKNOWN) )
-        {
-            internetState = g_internetState;
-        }
-        else
-        {
-            if(isConnectivityMonitorEndpointSet())
-                internetState = testConnectivity(getConnectivityMonitorEndpoints(), TEST_CONNECTIVITY_DEFAULT_TIMEOUT_MS, ipversion, true);
-            else
-                internetState = testConnectivity(getConnectivityDefaultEndpoints(), TEST_CONNECTIVITY_DEFAULT_TIMEOUT_MS, ipversion, true);
-        }
-
-        return internetState;
-    }
-
-    std::string ConnectivityMonitor::getCaptivePortalURI()
-    {
-        if (g_internetState == nsm_internetState::CAPTIVE_PORTAL)
-        {
-            return getCaptivePortal();
-        }
-        else
-        {
-            std::string captivePortal;
-            if(getInternetConnectionState(NSM_IPRESOLVE_WHATEVER) == nsm_internetState::CAPTIVE_PORTAL)
-            {
-                return getCaptivePortal();
-            }
-            else
-                NMLOG_WARNING("No captive portal found !");
-        }
-        return std::string("");
-    }
-
-    void ConnectivityMonitor::setConnectivityMonitorEndpoints(const std::vector<std::string> &endpoints)
-    {
-        const std::lock_guard<std::mutex> lock(endpointMutex);
-        monitorEndpoints.clear();
-        for (auto endpoint : endpoints) {
-            if(!endpoint.empty() && endpoint.size() > 3)
-                monitorEndpoints.push_back(endpoint.c_str());
-            else
-                NMLOG_INFO("endpoint not vallied = %s", endpoint.c_str());
-        }
-
-        // write the endpoints to a file
-        endpointCache.writeEnpointsToFile(monitorEndpoints);
-
-        std::string endpoints_str;
-        for (const auto& endpoint : monitorEndpoints)
-            endpoints_str.append(endpoint).append(" ");
-        NMLOG_INFO("Connectivity monitor endpoints -: %d :- %s", static_cast<int>(monitorEndpoints.size()), endpoints_str.c_str());
-    }
-
-    std::vector<std::string> ConnectivityMonitor::getConnectivityMonitorEndpoints()
-    {
-        const std::lock_guard<std::mutex> lock(endpointMutex);
-        std::vector<std::string> endpoints;
-        for (auto endpoint : monitorEndpoints) {
-            endpoints.push_back(endpoint);
-        }
-        return endpoints;
+        internetSate = checkCurlResponse(endpoints, timeout_ms, headReq, ipversion);
     }
 
     static bool curlVerboseEnabled() {
-        std::ifstream fileStream("/tmp/network.plugin.debug");
+        std::ifstream fileStream("/tmp/nm.plugin.debug");
         return fileStream.is_open();
     }
 
@@ -180,18 +114,14 @@ namespace WPEFramework {
     }
     static size_t writeFunction(void* ptr, size_t size, size_t nmemb, std::string* data) {
     #ifdef DBG_CURL_GET_RESPONSE
-        NMLOG_TRACE("%s",(char*)ptr);
+        LOG_DBG("%s",(char*)ptr);
     #endif
         return size * nmemb;
     }
 
-    nsm_internetState Connectivity::testConnectivity(const std::vector<std::string>& endpoints, long timeout_ms, nsm_ipversion ipversion, bool connectOnly)
+    nsm_internetState TestConnectivity::checkCurlResponse(const std::vector<std::string>& endpoints, long timeout_ms,  bool headReq, nsm_ipversion ipversion)
     {
         long deadline = current_time() + timeout_ms, time_now = 0, time_earlier = 0;
-        if(endpoints.size() < 1) {
-            NMLOG_ERROR("endpoints size error ! ");
-            return NO_INTERNET;
-        }
 
         CURLM *curl_multi_handle = curl_multi_init();
         if (!curl_multi_handle)
@@ -219,11 +149,15 @@ namespace WPEFramework {
             /* set our custom set of headers */
             curl_easy_setopt(curl_easy_handle, CURLOPT_HTTPHEADER, chunk);
             curl_easy_setopt(curl_easy_handle, CURLOPT_USERAGENT, "RDKCaptiveCheck/1.0");
-            /* set CURLOPT_HTTPGET option insted of CURLOPT_CONNECT_ONLY bcause we need to get the captiveportal URI not just connection only */
-            if(connectOnly)
-                curl_easy_setopt(curl_easy_handle, CURLOPT_CONNECT_ONLY, 1L);
-            else
-                curl_easy_setopt(curl_easy_handle, CURLOPT_HTTPGET, 1L); /* HTTPGET request added insted of HTTPHEAD request fix for DELIA-61526 */
+            // curl_easy_setopt(curl_easy_handle, CURLOPT_CONNECT_ONLY, 1L);
+            if(headReq) {
+                NMLOG_INFO("CURLOPT = Head Request");
+            }
+            else {
+                NMLOG_INFO("CURLOPT = Get Request");
+                /* HTTPGET request added insted of HTTPHEAD request fix for DELIA-61526 */
+                curl_easy_setopt(curl_easy_handle, CURLOPT_HTTPGET, 1L);
+            }
             curl_easy_setopt(curl_easy_handle, CURLOPT_WRITEFUNCTION, writeFunction);
             curl_easy_setopt(curl_easy_handle, CURLOPT_TIMEOUT_MS, deadline - current_time());
             if ((ipversion == CURL_IPRESOLVE_V4) || (ipversion == CURL_IPRESOLVE_V6))
@@ -258,21 +192,19 @@ namespace WPEFramework {
                     continue;
                 if (CURLE_OK == msg->data.result) {
                     curl_easy_getinfo(msg->easy_handle, CURLINFO_PRIVATE, &endpoint);
-                    if(connectOnly)
-                    response_code = HttpStatus_204_No_Content;
-                    else if (curl_easy_getinfo(msg->easy_handle, CURLINFO_RESPONSE_CODE, &response_code) == CURLE_OK)  {
-                        if(curlVerboseEnabled())
-                            NMLOG_INFO("endpoint = <%s> response code <%d>",endpoint, static_cast<int>(response_code));
+                    if (curl_easy_getinfo(msg->easy_handle, CURLINFO_RESPONSE_CODE, &response_code) == CURLE_OK)
+                    {
+                        NMLOG_TRACE("endpoint = <%s> http response code <%d>", endpoint, static_cast<int>(response_code));
                         if (HttpStatus_302_Found == response_code) {
                             if ( (curl_easy_getinfo(msg->easy_handle, CURLINFO_REDIRECT_URL, &url) == CURLE_OK) && url != nullptr) {
-                                NMLOG_WARNING("captive portal found !!!");
-                                setCaptivePortal(url);
+                                NMLOG_TRACE("captive portal found !!!");
+                                captivePortalURI = url;
                             }
                         }
                     }
                 }
                 else
-                    NMLOG_TRACE("endpoint = <%s> curl error = %d (%s)", endpoint, msg->data.result, curl_easy_strerror(msg->data.result));
+                    NMLOG_ERROR("endpoint = <%s> curl error = %d (%s)", endpoint, msg->data.result, curl_easy_strerror(msg->data.result));
                 http_responses.push_back(response_code);
             }
             time_earlier = time_now;
@@ -282,7 +214,7 @@ namespace WPEFramework {
     #if LIBCURL_VERSION_NUM < 0x074200
             if (CURLM_OK != (mc = curl_multi_wait(curl_multi_handle, NULL, 0, deadline - time_now, &numfds)))
             {
-                NMLOG_ERROR("curl_multi_wait returned %d (%s)", mc, curl_multi_strerror(mc));
+                LOGERR("curl_multi_wait returned %d (%s)", mc, curl_multi_strerror(mc));
                 break;
             }
             if (numfds == 0)
@@ -303,14 +235,14 @@ namespace WPEFramework {
         }
 
         if(curlVerboseEnabled()) {
-            NMLOG_INFO("endpoints count = %d response count %d, handles = %d, deadline = %ld, time_now = %ld, time_earlier = %ld",
+            NMLOG_TRACE("endpoints count = %d response count %d, handles = %d, deadline = %ld, time_now = %ld, time_earlier = %ld",
                 static_cast<int>(endpoints.size()), static_cast<int>(http_responses.size()), handles, deadline, time_now, time_earlier);
         }
 
         for (const auto& curl_easy_handle : curl_easy_handles)
         {
             curl_easy_getinfo(curl_easy_handle, CURLINFO_PRIVATE, &endpoint);
-            //NMLOG_TRACE("endpoint = <%s> terminating attempt", endpoint);
+            //LOG_DBG("endpoint = <%s> terminating attempt", endpoint);
             curl_multi_remove_handle(curl_multi_handle, curl_easy_handle);
             curl_easy_cleanup(curl_easy_handle);
         }
@@ -321,16 +253,16 @@ namespace WPEFramework {
     }
 
     /*
-     * verifying Most occurred response code is 50 % or more
-     * Example 1 :
-     *      if we have 5 endpoints so response also 5 ( 204 302 204 204 200 ) . Here count is 204 :- 3, 302 :- 1, 200 :- 1
-     *      Return Internet State: FULLY_CONNECTED - 60 %
-     * Example 2 :
-     *      if we have 4 endpoints so response also 4 ( 204 204 200 200 ) . Here count is 204 :- 2, 200 :- 2
-     *      Return Internet State: FULLY_CONNECTED - 50 %
-     */
+    * verifying Most occurred response code is 50 % or more
+    * Example 1 :
+    *      if we have 5 endpoints so response also 5 ( 204 302 204 204 200 ) . Here count is 204 :- 3, 302 :- 1, 200 :- 1
+    *      Return Internet State: FULLY_CONNECTED - 60 %
+    * Example 2 :
+    *      if we have 4 endpoints so response also 4 ( 204 204 200 200 ) . Here count is 204 :- 2, 200 :- 2
+    *      Return Internet State: FULLY_CONNECTED - 50 %
+    */
 
-    nsm_internetState Connectivity::checkInternetStateFromResponseCode(const std::vector<int>& responses)
+    nsm_internetState TestConnectivity::checkInternetStateFromResponseCode(const std::vector<int>& responses)
     {
         nsm_internetState InternetConnectionState = NO_INTERNET;
         nsm_connectivity_httpcode http_response_code = HttpStatus_response_error;
@@ -365,219 +297,526 @@ namespace WPEFramework {
                 case HttpStatus_511_Authentication_Required:
                 case HttpStatus_302_Found:
                     InternetConnectionState = CAPTIVE_PORTAL;
-                    NMLOG_INFO("Internet State: CAPTIVE_PORTAL -%.1f%%", (percentage*100));
+                    NMLOG_INFO("Internet State: CAPTIVE_PORTAL - %.1f%%", (percentage*100));
                 break;
                 default:
                     InternetConnectionState = NO_INTERNET;
                     if(http_response_code == -1)
-                        NMLOG_ERROR("Internet State: NO_INTERNET curl error");
+                        NMLOG_ERROR("Internet State: NO_INTERNET (curl error)");
                     else
-                        NMLOG_INFO("Internet State: NO_INTERNET Received http response code: <%d> %.1f%%", static_cast<int>(http_response_code), percentage * 100);
+                        NMLOG_WARNING("Internet State: NO_INTERNET (http code: %d - %.1f%%)", static_cast<int>(http_response_code), percentage * 100);
                     break;
             }
         }
         return InternetConnectionState;
     }
 
-    bool ConnectivityMonitor::doContinuousConnectivityMonitoring(int timeoutInSeconds)
+    static bool checkConnectionToDnsServer(const std::string& dnsIP)
     {
-        if(!isConnectivityMonitorEndpointSet())
+        int port = 53; // Default DNS port
+
+        if (dnsIP.find(':') != std::string::npos) // IPv6 address
         {
-            NMLOG_INFO("Connectivity monitor endpoints are not set !");
+            int sockfd = socket(AF_INET6, SOCK_STREAM, 0);
+            if (sockfd == -1)
+            {
+                    NMLOG_ERROR("Error creating socket.");
+                    return false;
+            }
+
+            struct sockaddr_in6 serverAddr6;
+            serverAddr6.sin6_family = AF_INET6;
+            serverAddr6.sin6_port = htons(port);
+            if (inet_pton(AF_INET6, dnsIP.c_str(), &(serverAddr6.sin6_addr)) <= 0)
+            {
+                    NMLOG_ERROR("Invalid address/ Address not supported");
+                    return false;
+            }
+
+            if (connect(sockfd, (struct sockaddr*)&serverAddr6, sizeof(serverAddr6)) == 0)
+            {
+                    NMLOG_INFO("DNS Server IP : %s Success", dnsIP.c_str());
+                    close(sockfd);
+                    return true;
+            }
+
+            close(sockfd);
+        }
+        else // IPv4 address
+        {
+            int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+            if (sockfd == -1)
+            {
+                    NMLOG_ERROR("Error creating socket.");
+                    return false;
+            }
+
+            struct sockaddr_in serverAddr;
+            serverAddr.sin_family = AF_INET;
+            serverAddr.sin_port = htons(port);
+            serverAddr.sin_addr.s_addr = inet_addr(dnsIP.c_str());
+
+            if (connect(sockfd, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) == 0)
+            {
+                    NMLOG_INFO("DNS Server IP : %s Success", dnsIP.c_str());
+                    close(sockfd);
+                    return true;
+            }
+
+            close(sockfd);
+        }
+        return false;
+    }
+
+    bool TestConnectivity::checkDnsConnection()
+    {
+        std::ifstream file(NMCONNECTIVITY_DNS_RESOLVE_FILE);
+        if (!file.is_open())
+        {
+            NMLOG_ERROR("Could not open file %s", NMCONNECTIVITY_DNS_RESOLVE_FILE);
             return false;
         }
 
-        timeout.store(timeoutInSeconds >= MONITOR_TIMEOUT_INTERVAL_MIN ? timeoutInSeconds:defaultTimeoutInSec);
-
-        if (isMonitorThreadRunning() && stopFlag == false)
+        std::string str;
+        while (std::getline(file, str))
         {
-            isContinuesMonitoringNeeded = true;
-            resetTimeout = true;
-            cv_.notify_all();
+            if(str.substr(0, 10) == "nameserver")
+            {
+                std::string ip = str.substr(11);
+                if(!ip.empty() && ip.size() > 3)
+                {
+                    if(checkConnectionToDnsServer(ip))
+                        return true;
+                    else
+                        NMLOG_ERROR("DNS IP Connection : %s Failed", ip.c_str());
+                }
+            }
+        }
+        return false;
+    }
+
+    ConnectivityMonitor::ConnectivityMonitor()
+    {
+        capitiveEndpt.push_back("http://clients3.google.com/generate_204");
+        if(endpointCache.isEndpointCashFileExist())
+        {
+            std::vector<std::string> cachedEndPnt = endpointCache.readEnpointsFromFile();
+            setConnMonitorEndpoint(cachedEndPnt);
+            NMLOG_INFO("cached connectivity endpoints loaded");
+        }
+        else
+            connMonitorEndpt.push_back("http://clients3.google.com/generate_204");
+
+        isCaptivePortalFound = false;
+        stopConnMonitor = true;
+        doCaptiveTest = true;
+        doConnectivityTest = false;
+    }
+
+    ConnectivityMonitor::~ConnectivityMonitor()
+    {
+        NMLOG_WARNING("~ConnectivityMonitor");
+        killConnectivityMonitor();
+    }
+
+    void ConnectivityMonitor::readConnectivityMonitorConf(const std::string& configFilePath)
+    {
+        std::ifstream configFile(configFilePath);
+        if (!configFile.is_open())
+        {
+            NMLOG_ERROR("Unable to open the configuration file: %s", configFilePath.c_str());
+            return;
+        }
+
+        bool ConnectivityConfigFound = false;
+        std::map<std::string, std::string> configMap;
+        int configMonitorInterval = 0;
+        bool configMonitorConnectivityEnabled = false;
+        // load connectivity endpoint configuration from conf file
+        std::string line;
+        while (std::getline(configFile, line))
+        {
+            if (line == "[Connectivity_Config]")
+            {
+                ConnectivityConfigFound = true;
+                continue;
+            }
+
+            if (ConnectivityConfigFound)
+            {
+                size_t equalsPos = line.find('=');
+                if (equalsPos != std::string::npos)
+                {
+                    std::string key = line.substr(0, equalsPos);
+                    std::string value = line.substr(equalsPos + 1);
+                    configMap[key] = value;
+                }
+            }
+        }
+
+        configFile.close();
+        /* Parse the connectivity monitor interval and enable values */
+        configMonitorConnectivityEnabled = ((configMap["CONNECTIVITY_MONITOR_ENABLE"] == "1")? true:false);
+        std::string monitorIntervalStr = configMap["CONNECTIVITY_MONITOR_INTERVAL"];
+        if (!monitorIntervalStr.empty())
+        {
+            configMonitorInterval = std::stoi(monitorIntervalStr);
+        }
+
+        capitiveEndpt.clear();
+        for (int i = 1; i <= 5; ++i)
+        {
+            std::string endpointName = "CONNECTIVITY_ENDPOINT_" + std::to_string(i);
+            auto endpoint = configMap.find(endpointName);
+            if (endpoint != configMap.end() && endpoint->second.length() > 3)
+            {
+                capitiveEndpt.push_back(endpoint->second);
+            }
+        }
+
+        if(capitiveEndpt.empty())
+        {
+            NMLOG_ERROR("captive endpoints are empty set default public endpoint set !!");
+            capitiveEndpt.push_back("http://clients3.google.com/generate_204");
         }
         else
         {
-            if (thread_.joinable())
-            {
-                NMLOG_WARNING("Connectivity Monitor joinable Thread is active");
-                stopFlag = true;
-                cv_.notify_all();
-                thread_.join();
-            }
-
-            isContinuesMonitoringNeeded = true;
-            stopFlag = false;
-            thread_ = std::thread(&ConnectivityMonitor::connectivityMonitorFunction, this);
-            NMLOG_INFO("Connectivity monitor started with %d", timeout.load());
+            std::string endpoints_str;
+            for (const auto& endpoint : capitiveEndpt)
+                endpoints_str.append(endpoint).append(" ");
+            NMLOG_INFO("captive portal endpoints count %d and endpoints:- %s", static_cast<int>(capitiveEndpt.size()), endpoints_str.c_str());
+            NMLOG_INFO("default monitor connectivity interval: %d and monitor connectivity auto start : %s", configMonitorInterval, configMonitorConnectivityEnabled? "true":"false");
         }
-
-        return true;
     }
 
-    bool ConnectivityMonitor::doInitialConnectivityMonitoring(int timeoutInSeconds)
+    bool ConnectivityMonitor::isConnectedToInternet(nsm_ipversion ipversion)
     {
-        if(!isConnectivityMonitorEndpointSet())
+        if (nsm_internetState::FULLY_CONNECTED == getInternetState(ipversion))
         {
-            NMLOG_INFO("Connectivity monitor endpoints are not set !");
+            NMLOG_INFO("isConnectedToInternet %s = true", (ipversion == nsm_ipversion::NSM_IPRESOLVE_WHATEVER)?"":(ipversion == nsm_ipversion::NSM_IPRESOLVE_V4? "IPv4":"IPv6"));
+            return true;
+        }
+        NMLOG_WARNING("isConnectedToInternet %s = false",(ipversion == nsm_ipversion::NSM_IPRESOLVE_WHATEVER)?"":(ipversion == nsm_ipversion::NSM_IPRESOLVE_V4? "IPv4":"IPv6") );
+        return false;
+    }
+
+    nsm_internetState ConnectivityMonitor::getInternetState(nsm_ipversion ipversion)
+    {
+        nsm_internetState internetState = nsm_internetState::UNKNOWN;
+        // If monitor connectivity is running take the cache value
+        if( isConnectivityMonitorRunnig() &&
+            (ipversion == NSM_IPRESOLVE_WHATEVER) && (gInternetState != nsm_internetState::UNKNOWN) )
+        {
+            internetState = gInternetState;
+            NMLOG_TRACE("Cached internet state %s ", getInternetStateString(internetState));
+        }
+        else
+        {
+            if(isCaptivePortalFound)
+            {
+                TestConnectivity testInternet(capitiveEndpt, NMCONNECTIVITY_CURL_REQUEST_TIMEOUT_MS, NMCONNECTIVITY_CURL_GET_REQUEST, ipversion);
+                internetState = testInternet.getInternetState();
+            }
+            else
+            {
+                TestConnectivity testInternet(connMonitorEndpt, NMCONNECTIVITY_CURL_REQUEST_TIMEOUT_MS, NMCONNECTIVITY_CURL_HEAD_REQUEST, ipversion);
+                internetState = testInternet.getInternetState();
+            }
+        }
+        return internetState;
+    }
+
+    std::string ConnectivityMonitor::getCaptivePortalURI()
+    {
+        TestConnectivity testInternet(capitiveEndpt, NMCONNECTIVITY_CURL_REQUEST_TIMEOUT_MS, NMCONNECTIVITY_CURL_GET_REQUEST, NSM_IPRESOLVE_WHATEVER);
+        if(nsm_internetState::CAPTIVE_PORTAL == testInternet.getInternetState())
+        {
+            NMLOG_WARNING("captive portal URI = %s", testInternet.getCaptivePortal().c_str());
+            return testInternet.getCaptivePortal();
+        }
+        NMLOG_WARNING("No captive portal found !");
+        return std::string("");
+    }
+
+    bool ConnectivityMonitor::startConnectivityMonitor(int timeoutInSeconds)
+    {
+        if (connectivityMonitorDisabled)
+        {
+            NMLOG_ERROR("connectivityMonitorDisabled");
             return false;
         }
 
-        if (isMonitorThreadRunning() && stopFlag == false)
+        doConnectivityTest = true;
+
+        connMonitorTimeout.store(timeoutInSeconds >= NMCONNECTIVITY_MONITOR_MIN_INTERVAL ? timeoutInSeconds : NMCONNECTIVITY_MONITOR_DEFAULT_INTERVAL);
+        if (connMonitorThrd.joinable() && stopConnMonitor == false)
         {
-            NMLOG_INFO("Connectivity Monitor Thread is active so notify");
-            cv_.notify_all();
-        }
-        else
-        {
-            if (thread_.joinable())
+            if(doCaptiveTest)
             {
-                NMLOG_WARNING("Connectivity Monitor joinable Thread is active");
-                stopFlag = true;
-                cv_.notify_all();
-                thread_.join();
+                NMLOG_INFO("captive monitor running so new interval updated with %d Sec", connMonitorTimeout.load());
             }
-
-            stopFlag = false;
-            timeout.store(timeoutInSeconds >= MONITOR_TIMEOUT_INTERVAL_MIN ? timeoutInSeconds:defaultTimeoutInSec);
-            thread_ = std::thread(&ConnectivityMonitor::connectivityMonitorFunction, this);
-            NMLOG_INFO("Initial Connectivity Monitoring started with %d", timeout.load());
-        }
-
-        return true;
-    }
-
-    bool ConnectivityMonitor::isMonitorThreadRunning()
-    {
-        return thread_.joinable();
-    }
-
-    bool ConnectivityMonitor::stopInitialConnectivityMonitoring()
-    {
-        if(isContinuesMonitoringNeeded)
-        {
-            NMLOG_WARNING("Continuous Connectivity Monitor is running");
+            else
+            {
+                NMLOG_INFO("connectivity monitor restarted with %d Sec", connMonitorTimeout.load());
+                cvConnMonitor.notify_all();
+            }
             return true;
         }
 
-        stopFlag = true;
-        cv_.notify_all();
+        stopConnMonitor = true;
+        if (connMonitorThrd.joinable())
+            connMonitorThrd.join();
 
-        if (thread_.joinable())
-            thread_.join();
+        stopConnMonitor = false;
+        doCaptiveTest = false; /* start with head request */
+        connMonitorThrd = std::thread(&ConnectivityMonitor::connectivityMonitorFunction, this);
+        NMLOG_INFO("connectivity monitor started with %d Sec", connMonitorTimeout.load());
 
-        NMLOG_INFO("Initial Connectivity Monitor stopped");
-        return true;
-    }
-
-    bool ConnectivityMonitor::stopContinuousConnectivityMonitoring()
-    {
-        stopFlag = true;
-        cv_.notify_all();
-
-        if (thread_.joinable())
-            thread_.join();
-
-        isContinuesMonitoringNeeded = false;
-        NMLOG_INFO("Continuous Connectivity monitor stopped");
-        return true;
-    }
-
-    void ConnectivityMonitor::signalConnectivityMonitor()
-    {
-        if (isMonitorThreadRunning())
+        if(connMonitorThrd.joinable())
         {
-            /* Reset the global value to UNKNOWN state so the cache is reset */
-            g_internetState = nsm_internetState::UNKNOWN;
-            cv_.notify_all();
+            return true;
         }
+        else
+            NMLOG_ERROR("Connectivity monitor start Failed");
+
+        return false;
+    }
+
+    bool ConnectivityMonitor::stopConnectivityMonitor()
+    {
+        doConnectivityTest = false;
+        if(doCaptiveTest)
+        {
+            /* captive portal check need to continoue even after this fuction called */
+            NMLOG_INFO("connectivity Monitor stopped but captive check is running");
+            return true;
+        }
+        stopConnMonitor = true;
+        cvConnMonitor.notify_all();
+
+        if (connMonitorThrd.joinable())
+            connMonitorThrd.join();
+        NMLOG_INFO("Connectivity Monitor stopped");
+        return true;
+    }
+
+    bool ConnectivityMonitor::isConnectivityMonitorRunnig()
+    {
+        return (connMonitorThrd.joinable() && (stopConnMonitor == false));
+    }
+
+    bool ConnectivityMonitor::startCaptivePortalMonitor()
+    {
+        /* NetworkManagerImplementation not require to start */
+        if (connectivityMonitorDisabled) {
+            NMLOG_ERROR("connectivityMonitorDisabled");
+            return false;
+        }
+
+        doCaptiveTest = true; /* start with Get request */
+        if (isConnectivityMonitorRunnig())
+        {
+            cvConnMonitor.notify_all();
+            NMLOG_INFO("trigger connectivity monitor");
+            return true;
+        }
+
+        if (connMonitorThrd.joinable())
+        {
+            stopConnMonitor = true;
+            cvConnMonitor.notify_all();
+            connMonitorThrd.join();
+        }
+
+        stopConnMonitor = false;
+        connMonitorThrd = std::thread(&ConnectivityMonitor::connectivityMonitorFunction, this);
+        if (connMonitorThrd.joinable())
+        {
+            NMLOG_INFO("captive portal monitor started ");
+        }
+        return true;
+    }
+
+    void ConnectivityMonitor::notifyInternetStatusChangedEvent(nsm_internetState newInternetState)
+    {
+        if(_instance != nullptr)
+        {
+            Exchange::INetworkManager::InternetStatus oldState = static_cast<Exchange::INetworkManager::InternetStatus>(gInternetState.load());
+            Exchange::INetworkManager::InternetStatus newState = static_cast<Exchange::INetworkManager::InternetStatus>(newInternetState);
+            _instance->ReportInternetStatusChangedEvent(oldState , newState);
+        }
+        else
+            NMLOG_WARNING("NetworkManagerImplementation Instance NULL notifyInternetStatusChange failed.");
     }
 
     void ConnectivityMonitor::connectivityMonitorFunction()
     {
-        nsm_internetState InternetConnectionState = nsm_internetState::UNKNOWN;
-        int notifyWaitCount = DEFAULT_MONITOR_RETRY_COUNT;
-        int tempTimeout = defaultTimeoutInSec;
-        do
+        int TempInterval = connMonitorTimeout.load();
+        bool curlCheckTyp = NMCONNECTIVITY_CURL_HEAD_REQUEST;
+        std::vector<std::string> tempTestEndpt;
+        std::mutex connMutex;
+        int retryCount = NMCONNECTIVITY_NO_INTERNET_RETRY_COUNT;
+        nsm_internetState currentInternetState = nsm_internetState::UNKNOWN;
+
+        while(!stopConnMonitor)
         {
-            if(g_internetState.load() == nsm_internetState::FULLY_CONNECTED)
-                /*if previous check was fully connected then do connect only curl check*/
-                InternetConnectionState = testConnectivity(getConnectivityMonitorEndpoints(), TEST_CONNECTIVITY_DEFAULT_TIMEOUT_MS, NSM_IPRESOLVE_WHATEVER, true);
-            else
-                /*curl get request*/
-                InternetConnectionState = testConnectivity(getConnectivityMonitorEndpoints(), TEST_CONNECTIVITY_DEFAULT_TIMEOUT_MS, NSM_IPRESOLVE_WHATEVER, false);
-
-            if(g_internetState.load() != InternetConnectionState)
+            if(doCaptiveTest)
             {
-                NMLOG_TRACE("notification count %d ", notifyWaitCount);
-                if(InternetConnectionState == nsm_internetState::NO_INTERNET && notifyWaitCount > 0)
-                {
-                    /* Decrease the notification count to create a delay in posting the 'no internet' state. */
-                    notifyWaitCount--;
-                    /* change the timeout value to 5 sec so that next check will happens with in 5 sec */
-                    tempTimeout = 5;
-                    NMLOG_INFO("notification count change to %d timeout %d ", notifyWaitCount, tempTimeout);
-                }
-                else
-                {
-                    g_internetState.store(InternetConnectionState);
-                    if(_instance != nullptr)
-                    {
-                        Exchange::INetworkManager::InternetStatus oldState = static_cast<Exchange::INetworkManager::InternetStatus>(g_internetState.load());
-                        Exchange::INetworkManager::InternetStatus newstate = static_cast<Exchange::INetworkManager::InternetStatus>(InternetConnectionState);
-                        _instance->ReportInternetStatusChangedEvent(oldState , newstate);
-                        NMLOG_TRACE("ReportInternetStatusChangedEvent called");
-                    }
-                    else
-                        NMLOG_WARNING("ReportInternetStatusChangedEvent callback not set");
-                    notifyWaitCount = DEFAULT_MONITOR_RETRY_COUNT;
-                    /* change the timeout value to actual requested value */
-                    tempTimeout = timeout.load();
-                    NMLOG_TRACE("notification count change to default %d ...", notifyWaitCount);
-                }
+                tempTestEndpt = capitiveEndpt;
+                TempInterval = NMCONNECTIVITY_CAPTIVE_MONITOR_INTERVAL;
+                curlCheckTyp = NMCONNECTIVITY_CURL_GET_REQUEST;
             }
             else
             {
-                notifyWaitCount = DEFAULT_MONITOR_RETRY_COUNT;
-                tempTimeout = timeout.load();
+                tempTestEndpt = connMonitorEndpt;
+                TempInterval = connMonitorTimeout.load();
+                curlCheckTyp = NMCONNECTIVITY_CURL_HEAD_REQUEST;
             }
 
-            if(!isContinuesMonitoringNeeded && (g_internetState.load() == FULLY_CONNECTED))
-            {
-                stopFlag = true;
-                NMLOG_INFO("Initial Connectivity Monitoring done Exiting ... FULLY_CONNECTED");
-                break;
-            }
+            TestConnectivity testInternet(tempTestEndpt, NMCONNECTIVITY_CURL_REQUEST_TIMEOUT_MS, curlCheckTyp, NSM_IPRESOLVE_WHATEVER);
+            currentInternetState = testInternet.getInternetState();
 
-            if(stopFlag)
+            if(stopConnMonitor)
                 break;
-            // wait for next timout or conditon signal
-            std::unique_lock<std::mutex> lock(mutex_);
-            if (cv_.wait_for(lock, std::chrono::seconds(tempTimeout)) != std::cv_status::timeout)
+
+            switch (currentInternetState)
             {
-                if(!stopFlag)
+                case nsm_internetState::NO_INTERNET:
                 {
-                    /*
-                    * We don't need to notify immediately when restarting the thread.
-                    * Immediate notification should occur only when any connection change happens.
-                    */
-                    if(resetTimeout)
+                    if ( curlCheckTyp == NMCONNECTIVITY_CURL_GET_REQUEST )  // captive portal check
                     {
-                        NMLOG_INFO("Connectivity monitor Restarted with %d", timeout.load());
-                        tempTimeout = timeout.load();
-                        resetTimeout = false;
+                        isCaptivePortalFound = false;
+                        TempInterval = 15; // 15 sec
                     }
-                    else
+                    else    // normal connectivity check
                     {
-                        notifyWaitCount = -1;
-                        NMLOG_INFO("Connectivity monitor received trigger");
+                        TempInterval = 5; // 5 Sec for next retry check
+                        retryCount--;
+                        if(retryCount >= 0)
+                        {
+                            NMLOG_INFO("Internet connection  Failed. Retrying %d in 5 Sec", NMCONNECTIVITY_NO_INTERNET_RETRY_COUNT - retryCount);
+                            currentInternetState = gInternetState ; // new state same as prvious state so i will not post internet state change
+                        }
+                        else
+                        {
+                            // TODO DNS check if needed
+                            retryCount = NMCONNECTIVITY_NO_INTERNET_RETRY_COUNT;
+                            TempInterval = connMonitorTimeout.load();
+                        }
                     }
+                break;
+                }
+                case nsm_internetState::LIMITED_INTERNET:
+                    retryCount = NMCONNECTIVITY_NO_INTERNET_RETRY_COUNT;
+                    isCaptivePortalFound = false;
+                break;
+                case nsm_internetState::CAPTIVE_PORTAL:
+                {
+                    TempInterval = NMCONNECTIVITY_CAPTIVE_MONITOR_INTERVAL;
+                    curlCheckTyp == NMCONNECTIVITY_CURL_GET_REQUEST;
+                    isCaptivePortalFound = true;
+                }
+                break;
+                case nsm_internetState::FULLY_CONNECTED:
+                {
+                    if(curlCheckTyp == NMCONNECTIVITY_CURL_GET_REQUEST)       // captive portal check
+                    {
+                        doCaptiveTest = false;
+                        if(doConnectivityTest)
+                        {
+                            // TempInterval = connMonitorTimeout.load();
+                            retryCount = NMCONNECTIVITY_NO_INTERNET_RETRY_COUNT;
+                        }
+                        else    // we don't need this thread when fully connected in captive portal check so exiting
+                        {
+                            stopConnMonitor = true;
+                            gInternetState = nsm_internetState::UNKNOWN; // make sure last event will post
+                        }
+                    }
+                    isCaptivePortalFound = false;
+                    TempInterval = connMonitorTimeout.load();
+                }
+                break;
+                default:
+                    NMLOG_WARNING("internet state not handiled %s", getInternetStateString(currentInternetState));
+                    break;
+            }
+
+            if(gInternetState != currentInternetState)
+            {
+                gInternetState = currentInternetState;
+                /* Notify Internet state change */
+                notifyInternetStatusChangedEvent(currentInternetState);
+                NMLOG_INFO("Internet state changed to %s", getInternetStateString(currentInternetState));
+            }
+
+            if(stopConnMonitor)
+                break;
+            /* wait for next interval */
+            std::unique_lock<std::mutex> lock(connMutex);
+            if (cvConnMonitor.wait_for(lock, std::chrono::seconds(TempInterval)) != std::cv_status::timeout)
+            {
+                if(!stopConnMonitor)
+                {
+                    NMLOG_INFO("connectivity monitor recieved signal. Skping %d sec interval", TempInterval);
                 }
             }
+            else
+                NMLOG_INFO("connectivity monitor %d sec interval expired", TempInterval);
+        };
+        stopConnMonitor = true;
+        gInternetState = nsm_internetState::UNKNOWN;
+        NMLOG_TRACE("connectivity monitor exit");
+    }
 
-        } while (!stopFlag);
+    void ConnectivityMonitor::setConnMonitorEndpoint(const std::vector<std::string> &endpoints)
+    {
+        connMonitorEndpt.clear();
+        for (auto endpoint : endpoints) {
+            if(!endpoint.empty() && endpoint.size() > 3)
+                connMonitorEndpt.push_back(endpoint.c_str());
+            else
+                NMLOG_ERROR("endpoint not vallied = %s", endpoint.c_str());
+        }
 
-        g_internetState = nsm_internetState::UNKNOWN;
-        NMLOG_WARNING("Connectivity monitor exiting");
+        // write the endpoints to a file
+        endpointCache.writeEnpointsToFile(connMonitorEndpt);
+
+        std::string endpointsStr;
+        for (const auto& endpoint : connMonitorEndpt)
+            endpointsStr.append(endpoint).append(" ");
+        NMLOG_INFO("Connectivity monitor endpoints -: %d :- %s", static_cast<int>(connMonitorEndpt.size()), endpointsStr.c_str());
+    }
+
+    void ConnectivityMonitor::setCaptiveMonitorEndpoint(const std::vector<std::string> &endpoints)
+    {
+        capitiveEndpt.clear();
+        for (auto endpoint : endpoints) {
+            if(!endpoint.empty() && endpoint.size() > 3)
+                capitiveEndpt.push_back(endpoint.c_str());
+            else
+                NMLOG_ERROR("endpoint not vallied = %s", endpoint.c_str());
+        }
+
+        std::string endpointsStr;
+        for (const auto& endpoint : capitiveEndpt)
+            endpointsStr.append(endpoint).append(" ");
+        NMLOG_INFO("captive monitor endpoints -: %d :- %s", static_cast<int>(capitiveEndpt.size()), endpointsStr.c_str());
+    }
+
+    bool ConnectivityMonitor::killConnectivityMonitor()
+    {
+        connectivityMonitorDisabled = true;
+        stopConnMonitor = true;
+        cvConnMonitor.notify_all();
+        if (connMonitorThrd.joinable())
+        {
+            connMonitorThrd.join();
+            NMLOG_INFO("connectivity monitor stopped permanetly");
+        }
+        else
+            NMLOG_INFO("no connectivity monitor running");
+        return true;
     }
 
     } // namespace Plugin
