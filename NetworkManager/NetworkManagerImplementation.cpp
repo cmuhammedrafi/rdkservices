@@ -111,9 +111,9 @@ namespace WPEFramework
             if(config.FromString(configLine))
             {
                 /* stun configuration copy */
-                m_stunEndPoint = config.stun.stunEndpoint.Value();
-                m_stunPort = config.stun.port.Value();
-                m_stunBindTimeout = config.stun.interval.Value();
+                m_stunEndPoint = config.stunConf.stunEndpoint.Value();
+                m_stunPort = config.stunConf.port.Value();
+                m_stunBindTimeout = config.stunConf.interval.Value();
 
                 std::vector<std::string> captiveEndpts;
                 std::vector<std::string> connectEndpts;

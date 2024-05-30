@@ -61,3 +61,93 @@ enum nsm_connectivity_httpcode {
     HttpStatus_404_Not_Found               = 404,
     HttpStatus_511_Authentication_Required = 511      // captive portal RFC 6585
 };
+
+#define NMCONNECTIVITY_CURL_HEAD_REQUEST          true
+#define NMCONNECTIVITY_CURL_GET_REQUEST           false
+#define NMCONNECTIVITY_DNS_RESOLVE_FILE           "/etc/resolv.dnsmasq"
+
+#define NMCONNECTIVITY_MONITOR_DEFAULT_INTERVAL   60     // sec
+#define NMCONNECTIVITY_MONITOR_MIN_INTERVAL       5      // sec
+#define NMCONNECTIVITY_CURL_REQUEST_TIMEOUT_MS    5000   // ms
+#define NMCONNECTIVITY_NO_INTERNET_RETRY_COUNT    4      // 4 retry
+#define NMCONNECTIVITY_CAPTIVE_MONITOR_INTERVAL   30     //  sec
+
+namespace WPEFramework
+{
+    namespace Plugin
+    {
+        /* save user specific endponint in to a chache file and load form the file if monitorEndpoints are empty case wpeframework restared */
+        class EndpointCache {
+            public:
+                bool isEndpointCashFileExist();
+                void writeEnpointsToFile(const std::vector<std::string>& endpoints);
+                std::vector<std::string> readEnpointsFromFile();
+
+                EndpointCache() : CachefilePath("/tmp/nm.plugin.endpoints") {}
+                ~EndpointCache(){}
+            private:
+                std::string CachefilePath;
+        };
+
+        class TestConnectivity
+        {
+            TestConnectivity(const TestConnectivity&) = delete;
+            const TestConnectivity& operator=(const TestConnectivity&) = delete;
+
+        public:
+            TestConnectivity(const std::vector<std::string>& endpoints, long timeout_ms = 2000, bool  = true, nsm_ipversion ipversion = NSM_IPRESOLVE_WHATEVER);
+            ~TestConnectivity(){}
+            std::string getCaptivePortal() {return captivePortalURI;}
+            nsm_internetState getInternetState(){return internetSate;}
+            bool checkDnsConnection();
+        private:
+            nsm_internetState checkCurlResponse(const std::vector<std::string>& endpoints, long timeout_ms,  bool headReq, nsm_ipversion ipversion);
+            nsm_internetState checkInternetStateFromResponseCode(const std::vector<int>& responses);
+            std::string captivePortalURI;
+            nsm_internetState internetSate;
+        };
+
+        class ConnectivityMonitor
+        {
+        public:
+            ConnectivityMonitor();
+            ~ConnectivityMonitor();
+            void disableConnectivityMonitor() { connectivityMonitorDisabled = true; }
+            bool startConnectivityMonitor(int timeoutInSeconds);
+            bool startCaptivePortalMonitor();
+            bool stopConnectivityMonitor();
+            bool killConnectivityMonitor();
+            void setConnMonitorEndpoint(const std::vector<std::string> &endpoints);
+            void setCaptiveMonitorEndpoint(const std::vector<std::string> &endpoints);
+            std::vector<std::string> getConnectivityMonitorEndpoints() {return connMonitorEndpt;};
+            bool isConnectedToInternet(nsm_ipversion ipversion);
+            nsm_internetState getInternetState(nsm_ipversion ipversion);
+            std::string getCaptivePortalURI();
+
+        private:
+            ConnectivityMonitor(const ConnectivityMonitor&) = delete;
+            ConnectivityMonitor& operator=(const ConnectivityMonitor&) = delete;
+            void connectivityMonitorFunction();
+            bool isConnectivityMonitorRunnig();
+            void readConnectivityMonitorConf(const std::string& configFilePath);
+            void notifyInternetStatusChangedEvent(nsm_internetState newState);
+            /* connectivity monitor */
+            std::thread connMonitorThrd;
+            std::atomic<bool> doCaptiveTest;
+            std::atomic<bool> doConnectivityTest;
+            std::atomic<bool> stopConnMonitor;
+            std::atomic<bool> isCaptivePortalFound;
+            std::atomic<int> connMonitorTimeout;
+            std::condition_variable cvConnMonitor;
+            std::vector<std::string> connMonitorEndpt;
+             /* capitive monitor */
+            std::vector<std::string> capitiveEndpt;
+
+            std::atomic<nsm_internetState> gInternetState = {nsm_internetState::UNKNOWN};
+            EndpointCache endpointCache;
+
+            /* Disable both captive & connectivity monitor */
+            bool connectivityMonitorDisabled = false;
+        };
+    } // namespace Plugin
+} // namespace WPEFramework
