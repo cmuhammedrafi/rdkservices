@@ -25,7 +25,7 @@ using namespace WPEFramework::Plugin;
 #define API_VERSION_NUMBER_MAJOR 2
 #define API_VERSION_NUMBER_MINOR 0
 #define API_VERSION_NUMBER_PATCH 0
-#define NETWORK_MANAGER_CALLSIGN    "org.rdk.NetworkManager.1"
+#define NETWORK_MANAGER_CALLSIGN    "org.rdk.NetworkManager"
 
 #define LOGINFOMETHOD() { string json; parameters.ToString(json); NMLOG_TRACE("Legacy params=%s", json.c_str() ); }
 #define LOGTRACEMETHODFIN() { string json; response.ToString(json); NMLOG_TRACE("Legacy response=%s", json.c_str() ); }
