@@ -644,9 +644,11 @@ namespace WPEFramework
             Exchange::INetworkManager::InternetStatus oldState = static_cast<Exchange::INetworkManager::InternetStatus>(gInternetState.load());
             Exchange::INetworkManager::InternetStatus newState = static_cast<Exchange::INetworkManager::InternetStatus>(newInternetState);
             _instance->ReportInternetStatusChangedEvent(oldState , newState);
+            /* change global state to new state */
+            gInternetState = newInternetState;
         }
         else
-            NMLOG_WARNING("NetworkManagerImplementation Instance NULL notifyInternetStatusChange failed.");
+            NMLOG_WARNING("NetworkManagerImplementation Instance NULL notifyInternetStatusChange failed");
     }
 
     void ConnectivityMonitor::connectivityMonitorFunction()
@@ -744,10 +746,9 @@ namespace WPEFramework
 
             if(gInternetState != currentInternetState)
             {
-                gInternetState = currentInternetState;
                 /* Notify Internet state change */
-                notifyInternetStatusChangedEvent(currentInternetState);
                 NMLOG_INFO("Internet state changed to %s", getInternetStateString(currentInternetState));
+                notifyInternetStatusChangedEvent(currentInternetState);
             }
 
             if(stopConnMonitor)
