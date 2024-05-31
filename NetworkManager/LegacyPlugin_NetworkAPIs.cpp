@@ -901,8 +901,10 @@ const string CIDR_PREFIXES[CIDR_NETMASK_IP_LEN] = {
         void Network::onInternetStatusChange(const JsonObject& parameters)
         {
             LOGINFOMETHOD();
-            if(_gNWInstance)
+            if(_gNWInstance) {
+                NMLOG_INFO("Internet state changed from network");
                 _gNWInstance->ReportonInternetStatusChange(parameters);
+            }
         }
     }
 }

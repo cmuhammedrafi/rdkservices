@@ -527,6 +527,7 @@ namespace WPEFramework
             LOG_ENTRY_FUNCTION();
             _notificationLock.Lock();
             for (const auto callback : _notificationCallbacks) {
+                NMLOG_INFO("Internet state changed from networkmanager");
                 callback->onInternetStatusChange(oldState, newstate);
             }
             _notificationLock.Unlock();
