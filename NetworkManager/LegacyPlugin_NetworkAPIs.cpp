@@ -129,10 +129,11 @@ namespace WPEFramework
             /* Wait for Proxy stuff to be established */
             sleep(3);
     
-            if (Core::ERROR_NONE != subscribeToEvents())
-                return string("Failed to Subscribe");
-            else
-                return string();
+            // if (Core::ERROR_NONE != subscribeToEvents())
+            //     return string("Failed to Subscribe");
+            // else
+            subscribeToEvents()
+            return string();
         }
 
         void Network::Deinitialize(PluginHost::IShell* /* service */)
