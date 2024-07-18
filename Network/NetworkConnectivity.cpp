@@ -455,11 +455,11 @@ namespace WPEFramework {
             return false;
         }
 
+        isContinuesMonitoringNeeded = true;
         timeout.store(timeoutInSeconds >= MONITOR_TIMEOUT_INTERVAL_MIN ? timeoutInSeconds:defaultTimeoutInSec);
 
-        if (isMonitorThreadRunning() && stopFlag == false)
+        if (isMonitorThreadRunning())
         {
-            isContinuesMonitoringNeeded = true;
             resetTimeout = true;
             cv_.notify_all();
         }
@@ -473,7 +473,6 @@ namespace WPEFramework {
                 thread_.join();
             }
 
-            isContinuesMonitoringNeeded = true;
             stopFlag = false;
             thread_ = std::thread(&ConnectivityMonitor::connectivityMonitorFunction, this);
             LOGINFO("Connectivity monitor started with %d", timeout.load());
@@ -490,7 +489,7 @@ namespace WPEFramework {
             return false;
         }
 
-        if (isMonitorThreadRunning() && stopFlag == false)
+        if (isContinuesMonitoringNeeded)
         {
             LOGINFO("Connectivity Monitor Thread is active so notify");
             g_internetState = nsm_internetState::UNKNOWN;
@@ -517,7 +516,7 @@ namespace WPEFramework {
 
     bool ConnectivityMonitor::isMonitorThreadRunning()
     {
-        return thread_.joinable();
+        return (thread_.joinable() && stopFlag == false);
     }
 
     bool ConnectivityMonitor::stopInitialConnectivityMonitoring()
@@ -531,23 +530,19 @@ namespace WPEFramework {
         stopFlag = true;
         cv_.notify_all();
 
-        if (thread_.joinable())
-            thread_.join();
-
         LOGINFO("Initial Connectivity Monitor stopped");
-
         return true;
     }
 
     bool ConnectivityMonitor::stopContinuousConnectivityMonitoring()
     {
+        isContinuesMonitoringNeeded = false;
         stopFlag = true;
         cv_.notify_all();
 
         if (thread_.joinable())
             thread_.join();
 
-        isContinuesMonitoringNeeded = false;
         LOGINFO("Continuous Connectivity monitor stopped");
         return true;
     }
