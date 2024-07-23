@@ -498,7 +498,7 @@ namespace WPEFramework
                         else {
                             freq = "Not available";
                         }
-			if ((flags == NM_802_11_AP_FLAGS_NONE) && (wpaFlags == NM_802_11_AP_SEC_NONE) && (rsnFlags == NM_802_11_AP_SEC_NONE))
+                        if ((flags == NM_802_11_AP_FLAGS_NONE) && (wpaFlags == NM_802_11_AP_SEC_NONE) && (rsnFlags == NM_802_11_AP_SEC_NONE))
                         {
                             security = 0;
                         }
@@ -532,13 +532,13 @@ namespace WPEFramework
                         }
                         else if((wpaFlags & NM_802_11_AP_SEC_GROUP_TKIP) || (rsnFlags & NM_802_11_AP_SEC_GROUP_TKIP))
                         {
-                            security = 5;;
+                            security = 5;
                         }
                         else
                         {
                             NMLOG_WARNING("security mode not defined");
                         }
-		    }
+		            }
                     if(ssid_str)
                     {
                         string ssidString(ssid_str);
@@ -568,7 +568,9 @@ namespace WPEFramework
             loop = g_main_loop_new(NULL, FALSE);
             NMDevice *wifi_device;
             wifi_device = nm_client_get_device_by_iface(client, "wlan0");
-            nm_device_wifi_request_scan_options_async(NM_DEVICE_WIFI(wifi_device), NULL, NULL, on_scan_done, loop);//TODO Explore further on the API and check whether w            which all options can be passed as Argument. Example : We can pass SSID as an option and scan for that SSID alone
+            nm_device_wifi_request_scan_options_async(NM_DEVICE_WIFI(wifi_device), NULL, NULL, on_scan_done, loop);
+            //TODO Explore further on the API and check whether w            
+            //which all options can be passed as Argument. Example : We can pass SSID as an option and scan for that SSID alone
             g_main_loop_run(loop);
             rc = Core::ERROR_NONE;
             return rc;

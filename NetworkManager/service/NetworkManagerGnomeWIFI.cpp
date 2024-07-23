@@ -106,7 +106,6 @@ namespace WPEFramework
             if(activeAP == NULL) {
                 return false;
             }
-
             ssid = nm_access_point_get_ssid(activeAP);
             gsize size;
             const guint8 *ssidData = static_cast<const guint8 *>(g_bytes_get_data(ssid, &size));
