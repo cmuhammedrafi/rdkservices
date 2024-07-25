@@ -23,6 +23,13 @@
 #include <string.h>
 #include <iostream>
 
+struct EventData
+{
+    NMClient *client;
+    NMActiveConnection *activeConn;
+    NMDevice *device;
+};
+
 class GnomeNetworkManagerEvents
 {
 
@@ -33,18 +40,22 @@ public:
     std::string ifnameWlan0;
     std::string ifnameEth0;
 
+    static void onInterfaceStateChangeCb(std::string iface, std::string state);
+    static void onAddressChangeCb(std::string iface, bool isIPv6, std::string ipAddress, bool acqired);
+    static void onActiveInterfaceChangeCb(std::string newInterface);
+    static void onAvailableSSIDsCb();
 
 public:
     GnomeNetworkManagerEvents();
     ~GnomeNetworkManagerEvents();
-    bool startNetworkMangerDbusEventMonitor();
-    void stopNetworkMangerDbusEventMonitor();
+    static void networkMangerEventMonitor(GnomeNetworkManagerEvents *NmEvent);
+    bool startNetworkMangerEventMonitor();
+    void stopNetworkMangerEventMonitor();
     void startWifiScanning(std::string ssidReq = "");
     void printAvailbleAccessPoints(NMDeviceWifi *wifiDevice);
 
 private:
     bool createClientNewConnection();
-
     NMClient *client;
     GMainLoop *loop;
 };
