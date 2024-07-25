@@ -34,16 +34,15 @@ class GnomeNetworkManagerEvents
 {
 
 public:
-    std::string oldActiveIfaceName;
-    std::string newActiveIfaceName;
     NMActiveConnection *activeConn;
     std::string ifnameWlan0;
     std::string ifnameEth0;
 
     static void onInterfaceStateChangeCb(std::string iface, std::string state);
-    static void onAddressChangeCb(std::string iface, bool isIPv6, std::string ipAddress, bool acqired);
+    static void onAddressChangeCb(std::string iface, std::string ipAddress, bool acqired, bool isIPv6);
     static void onActiveInterfaceChangeCb(std::string newInterface);
     static void onAvailableSSIDsCb();
+    static void onWIFIStateChanged(int state);
 
 public:
     GnomeNetworkManagerEvents();
@@ -52,10 +51,8 @@ public:
     bool startNetworkMangerEventMonitor();
     void stopNetworkMangerEventMonitor();
     void startWifiScanning(std::string ssidReq = "");
-    void printAvailbleAccessPoints(NMDeviceWifi *wifiDevice);
 
 private:
-    bool createClientNewConnection();
     NMClient *client;
     GMainLoop *loop;
 };
