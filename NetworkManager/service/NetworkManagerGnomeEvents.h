@@ -41,8 +41,12 @@ public:
     static void onInterfaceStateChangeCb(std::string iface, std::string state);
     static void onAddressChangeCb(std::string iface, std::string ipAddress, bool acqired, bool isIPv6);
     static void onActiveInterfaceChangeCb(std::string newInterface);
-    static void onAvailableSSIDsCb();
+    static void onAvailableSSIDsCb(NMDeviceWifi *wifiDevice, GParamSpec *pspec, gpointer userData);
     static void onWIFIStateChanged(int state);
+    /*legacy events*/
+    static void onInterfaceStatusChangedCb(std::string iface, bool enabled);
+    static void onConnectionStatusChangedCb(std::string iface, bool connected);
+    static void onIPAddressStatusChangedCb(std::string iface, std::string ipv4, std::string ipv6, bool acqired);
 
 public:
     GnomeNetworkManagerEvents();
@@ -55,4 +59,5 @@ public:
 private:
     NMClient *client;
     GMainLoop *loop;
+    bool isEventThrdActive = false;
 };
