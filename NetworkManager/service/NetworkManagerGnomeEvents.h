@@ -22,22 +22,23 @@
 #include <libnm/NetworkManager.h>
 #include <string.h>
 #include <iostream>
+#include <atomic>
 
-struct EventData
-{
+typedef struct {
     NMClient *client;
-    NMActiveConnection *activeConn;
+    GMainLoop *loop;
     NMDevice *device;
-};
+    NMDeviceWifi *wifiDevice;
+    NMActiveConnection *activeConn;
+    std::string ifnameWlan0;
+    std::string ifnameEth0;
+} NMEvents;
+
 
 class GnomeNetworkManagerEvents
 {
 
 public:
-    NMActiveConnection *activeConn;
-    std::string ifnameWlan0;
-    std::string ifnameEth0;
-
     static void onInterfaceStateChangeCb(std::string iface, std::string state);
     static void onAddressChangeCb(std::string iface, std::string ipAddress, bool acqired, bool isIPv6);
     static void onActiveInterfaceChangeCb(std::string newInterface);
@@ -51,13 +52,13 @@ public:
 public:
     GnomeNetworkManagerEvents();
     ~GnomeNetworkManagerEvents();
-    static void networkMangerEventMonitor(GnomeNetworkManagerEvents *NmEvent);
+    static void* networkMangerEventMonitor(void *arg);
     bool startNetworkMangerEventMonitor();
     void stopNetworkMangerEventMonitor();
     void startWifiScanning(std::string ssidReq = "");
 
 private:
-    NMClient *client;
-    GMainLoop *loop;
-    bool isEventThrdActive = false;
+    std::atomic<bool> isEventThrdActive{false};
+    NMEvents nmEvents;
+    GThread *eventThrdID;
 };
