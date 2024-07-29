@@ -24,41 +24,48 @@
 #include <iostream>
 #include <atomic>
 
-typedef struct {
-    NMClient *client;
-    GMainLoop *loop;
-    NMDevice *device;
-    NMDeviceWifi *wifiDevice;
-    NMActiveConnection *activeConn;
-    std::string ifnameWlan0;
-    std::string ifnameEth0;
-} NMEvents;
-
-
-class GnomeNetworkManagerEvents
+namespace WPEFramework
 {
+    namespace Plugin
+    {
 
-public:
-    static void onInterfaceStateChangeCb(std::string iface, std::string state);
-    static void onAddressChangeCb(std::string iface, std::string ipAddress, bool acqired, bool isIPv6);
-    static void onActiveInterfaceChangeCb(std::string newInterface);
-    static void onAvailableSSIDsCb(NMDeviceWifi *wifiDevice, GParamSpec *pspec, gpointer userData);
-    static void onWIFIStateChanged(int state);
-    /*legacy events*/
-    static void onInterfaceStatusChangedCb(std::string iface, bool enabled);
-    static void onConnectionStatusChangedCb(std::string iface, bool connected);
-    static void onIPAddressStatusChangedCb(std::string iface, std::string ipv4, std::string ipv6, bool acqired);
+    typedef struct {
+        NMClient *client;
+        GMainLoop *loop;
+        NMDevice *device;
+        NMDeviceWifi *wifiDevice;
+        NMActiveConnection *activeConn;
+        std::string ifnameWlan0;
+        std::string ifnameEth0;
+    } NMEvents;
 
-public:
-    GnomeNetworkManagerEvents();
-    ~GnomeNetworkManagerEvents();
-    static void* networkMangerEventMonitor(void *arg);
-    bool startNetworkMangerEventMonitor();
-    void stopNetworkMangerEventMonitor();
-    void startWifiScanning(std::string ssidReq = "");
+    class GnomeNetworkManagerEvents
+    {
 
-private:
-    std::atomic<bool> isEventThrdActive{false};
-    NMEvents nmEvents;
-    GThread *eventThrdID;
-};
+    public:
+        static void onInterfaceStateChangeCb(std::string iface, std::string state);
+        static void onAddressChangeCb(std::string iface, std::string ipAddress, bool acqired, bool isIPv6);
+        static void onActiveInterfaceChangeCb(std::string newInterface);
+        static void onAvailableSSIDsCb(NMDeviceWifi *wifiDevice, GParamSpec *pspec, gpointer userData);
+        static void onWIFIStateChanged(int state);
+        /*legacy events*/
+        static void onInterfaceStatusChangedCb(std::string iface, bool enabled);
+        static void onConnectionStatusChangedCb(std::string iface, bool connected);
+        static void onIPAddressStatusChangedCb(std::string iface, std::string ipv4, std::string ipv6, bool acqired);
+
+    public:
+        GnomeNetworkManagerEvents();
+        ~GnomeNetworkManagerEvents();
+        static void* networkMangerEventMonitor(void *arg);
+        bool startNetworkMangerEventMonitor();
+        void stopNetworkMangerEventMonitor();
+        void startWifiScanning(std::string ssidReq = "");
+
+    private:
+        std::atomic<bool> isEventThrdActive{false};
+        NMEvents nmEvents;
+        GThread *eventThrdID;
+    };
+
+    }   // Plugin
+}   // WPEFramework
