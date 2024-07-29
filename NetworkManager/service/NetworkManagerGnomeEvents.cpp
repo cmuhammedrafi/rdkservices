@@ -28,12 +28,15 @@
 #include "Module.h"
 #include "NetworkManagerGnomeEvents.h"
 #include "NetworkManagerLogger.h"
+#include "NetworkManagerGnomeUtils.h"
+#include "NetworkManagerImplementation.h"
 
 namespace WPEFramework
 {
     namespace Plugin
     {
 
+    extern NetworkManagerImplementation* _instance;
     static GnomeNetworkManagerEvents *_nmEventInstance = nullptr;
 
     const char* ifnameEth = "enx207bd51e02ad";
@@ -374,7 +377,7 @@ namespace WPEFramework
         }
 
         g_main_loop_run(nmEvents->loop);
-        g_main_loop_unref(nmEvents->loop);
+        //g_main_loop_unref(nmEvents->loop);
         NMLOG_INFO("Register all dbus events");
         return nullptr;
     }
@@ -514,56 +517,35 @@ namespace WPEFramework
             NMLOG_ERROR("Not a wifi object ");
             return;
         }
-        const GPtrArray *accessPointsArray = nm_device_wifi_get_access_points(wifiDevice);
-        for (guint i = 0; i < accessPointsArray->len; i++)
+        JsonArray ssidList = JsonArray();
+        string ssidListJson;
+        NMAccessPoint *ap = nullptr;
+        const GPtrArray *accessPoints = nm_device_wifi_get_access_points(wifiDevice);
+        NMLOG_INFO("Number of Access Points Available = %d", static_cast<int>(accessPoints->len));
+        for (guint i = 0; i < accessPoints->len; i++)
         {
-            NMAccessPoint *ap = NULL;
-            GBytes *ssidGByte = NULL;
-            std::string ssid;
-
-            ap = (NMAccessPoint*)accessPointsArray->pdata[i];
-            ssidGByte = nm_access_point_get_ssid(ap);
-            if(ssidGByte)
-            {
-                char* ssidStr = NULL;
-                gsize len;
-                const guint8 *ssidData = static_cast<const guint8 *>(g_bytes_get_data(ssidGByte, &len));
-                ssidStr = nm_utils_ssid_to_utf8(ssidData, len);
-                if(ssidStr != NULL) {
-                    std::string ssidTmp(ssidStr, len);
-                    ssid = ssidTmp;
-                }
-                else
-                    ssid = "---";
-            }
-            else
-                ssid = "---";
-            
-            if(!_nmEventInstance->ssidSpecific.empty() && _nmEventInstance->ssidSpecific == ssid)
-            {
-                NMLOG_INFO("specific ssid: %s found", ssid.c_str());
-                //TODO create json object
-                break;
-            }
-            else if(_nmEventInstance->printLog)
-            {
-                NMLOG_INFO("ssid: %s", ssid.c_str());
-            }
+            JsonObject ssidObj;
+            ap = static_cast<NMAccessPoint*>(accessPoints->pdata[i]);
+            ssidObj = nmUtils::apToJsonObject(ap);
+            ssidList.Add(ssidObj);
         }
-    
-        _nmEventInstance->ssidSpecific.clear();
-        _nmEventInstance->printLog = false;
+
+        ssidList.ToString(ssidListJson);
+        if(_nmEventInstance->printLog)
+            NMLOG_TRACE("Scanned APIs are  = %s",ssidListJson.c_str());
+        // TODO call NetworkManagerImplementation::_instance->ReportAvailableSSIDsEvent
+        _instance->ReportAvailableSSIDsEvent(ssidListJson);
     }
 
     /* legacy events */
     void GnomeNetworkManagerEvents::onInterfaceStatusChangedCb(std::string iface, bool enabled)
     {
-    NMLOG_INFO("interface %s %s", iface.c_str(),enabled?"enabled":"disabled");
+        NMLOG_INFO("interface %s %s", iface.c_str(),enabled?"enabled":"disabled");
     }
 
     void GnomeNetworkManagerEvents::onConnectionStatusChangedCb(std::string iface, bool connected)
     {
-    NMLOG_INFO("interface %s %s", iface.c_str(),connected?"CONNECTED":"DISCONNECTED");
+        NMLOG_INFO("interface %s %s", iface.c_str(),connected?"CONNECTED":"DISCONNECTED");
     }
 
     void GnomeNetworkManagerEvents::onIPAddressStatusChangedCb(std::string iface, std::string ipv4, std::string ipv6, bool acqired)

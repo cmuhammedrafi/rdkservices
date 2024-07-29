@@ -5,6 +5,7 @@
 #include "NetworkManagerImplementation.h"
 #include "NetworkManagerGnomeWIFI.h"
 #include "NetworkManagerGnomeEvents.h"
+#include "NetworkManagerGnomeUtils.h"
 
 static NMClient *client;
 
@@ -463,100 +464,26 @@ namespace WPEFramework
         static void on_scan_done(GObject *source_object, GAsyncResult *result, gpointer user_data)
         {
             GError *error = NULL;
-            GBytes *ssid = NULL;
             NMAccessPoint *ap = NULL;
-            int strength = 0;
-            std::string freq;
-            guint security;
-            guint32 flags, wpaFlags, rsnFlags, ap_freq;
-            JsonArray ssidList = JsonArray();
             JsonObject ssidObj;
+            JsonArray ssidList = JsonArray();
             gboolean success = nm_device_wifi_request_scan_finish(NM_DEVICE_WIFI(source_object), result, &error);
             if (success)
             {
                 NMDeviceWifi *wifi_device = NM_DEVICE_WIFI(source_object);
                 const GPtrArray *access_points = nm_device_wifi_get_access_points(wifi_device);
-                NMLOG_INFO("Number of Access Points Scanned=%d\n",access_points->len);
+                NMLOG_INFO("Number of Access Points Scanned=%d",access_points->len);
                 for (guint i = 0; i < access_points->len; i++)
                 {
                     char* ssid_str = NULL;
                     ap = (NMAccessPoint*)access_points->pdata[i];
-                    ssid = nm_access_point_get_ssid(ap);
-                    if (ssid)
-                    {
-                        ssid_str = nm_utils_ssid_to_utf8((const guint8*)g_bytes_get_data(ssid, NULL), g_bytes_get_size(ssid));
-                        strength = nm_access_point_get_strength(ap);
-                        ap_freq   = nm_access_point_get_frequency(ap);
-                        flags     = nm_access_point_get_flags(ap);
-                        wpaFlags = nm_access_point_get_wpa_flags(ap);
-                        rsnFlags = nm_access_point_get_rsn_flags(ap);
-                        if (ap_freq >= 2400 && ap_freq < 5000) {
-                            freq = "2.4";
-                        }
-                        else if (ap_freq >= 5000 && ap_freq < 6000) {
-                            freq = "5";
-                        }
-                        else if (ap_freq >= 6000) {
-                            freq = "6";
-                        }
-                        else {
-                            freq = "Not available";
-                        }
-                        if ((flags == NM_802_11_AP_FLAGS_NONE) && (wpaFlags == NM_802_11_AP_SEC_NONE) && (rsnFlags == NM_802_11_AP_SEC_NONE))
-                        {
-                            security = 0;
-                        }
-                        else if( (flags & NM_802_11_AP_FLAGS_PRIVACY) && ((wpaFlags & NM_802_11_AP_SEC_PAIR_WEP40) || (rsnFlags & NM_802_11_AP_SEC_PAIR_WEP40)) )
-                        {
-                            security = 1;
-                        }
-                        else if( (flags & NM_802_11_AP_FLAGS_PRIVACY) && ((wpaFlags & NM_802_11_AP_SEC_PAIR_WEP104) || (rsnFlags & NM_802_11_AP_SEC_PAIR_WEP104)) )
-                        {
-                            security = 2;
-                        }
-                        else if((wpaFlags & NM_802_11_AP_SEC_PAIR_TKIP) || (rsnFlags & NM_802_11_AP_SEC_PAIR_TKIP))
-                        {
-                            security = 3;
-                        }
-                        else if((wpaFlags & NM_802_11_AP_SEC_PAIR_CCMP) || (rsnFlags & NM_802_11_AP_SEC_PAIR_CCMP))
-                        {
-                            security = 4;
-                        }
-                        else if ((rsnFlags & NM_802_11_AP_SEC_KEY_MGMT_PSK) && (rsnFlags & NM_802_11_AP_SEC_KEY_MGMT_802_1X))
-                        {
-                            security = 12;
-                        }
-                        else if(rsnFlags & NM_802_11_AP_SEC_KEY_MGMT_PSK)
-                        {
-                            security = 11;
-                        }
-                        else if((wpaFlags & NM_802_11_AP_SEC_GROUP_CCMP) || (rsnFlags & NM_802_11_AP_SEC_GROUP_CCMP))
-                        {
-                            security = 6;
-                        }
-                        else if((wpaFlags & NM_802_11_AP_SEC_GROUP_TKIP) || (rsnFlags & NM_802_11_AP_SEC_GROUP_TKIP))
-                        {
-                            security = 5;
-                        }
-                        else
-                        {
-                            NMLOG_WARNING("security mode not defined");
-                        }
-		            }
-                    if(ssid_str)
-                    {
-                        string ssidString(ssid_str);
-                        ssidObj["ssid"] = ssidString;
-                        ssidObj["security"] = security;
-                        ssidObj["signalStrength"] = strength;
-                        ssidObj["frequency"] = freq;
-                        ssidList.Add(ssidObj);
-                    }
+                    ssidObj = nmUtils::apToJsonObject(ap);
+                    ssidList.Add(ssidObj);
                 }
             }
             else
             {
-                NMLOG_ERROR("Error requesting Wi-Fi scan: %s\n", error->message);
+                NMLOG_ERROR("Error requesting Wi-Fi scan: %s", error->message);
             }
             string json;
             ssidList.ToString(json);

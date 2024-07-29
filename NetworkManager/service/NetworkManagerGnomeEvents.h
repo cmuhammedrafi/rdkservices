@@ -68,7 +68,7 @@ namespace WPEFramework
         GThread *eventThrdID;
 
         std::string ssidSpecific;
-        std::atomic<bool> printLog;
+        std::atomic<bool>printLog = {true}; // set to default print for debug
     };
 
     }   // Plugin
