@@ -27,7 +27,7 @@ namespace WPEFramework
 
         void NetworkManagerInternalEventHandler(const char *owner, int eventId, void *data, size_t len)
         {
-	    return;
+	        return;
         }
 
         void NetworkManagerImplementation::platform_init()

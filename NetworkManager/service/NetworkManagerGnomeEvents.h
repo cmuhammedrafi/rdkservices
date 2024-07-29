@@ -60,11 +60,15 @@ namespace WPEFramework
         bool startNetworkMangerEventMonitor();
         void stopNetworkMangerEventMonitor();
         void startWifiScanning(std::string ssidReq = "");
+        void setwifiScanOptions(std::string &ssid, bool print);
 
     private:
         std::atomic<bool> isEventThrdActive{false};
         NMEvents nmEvents;
         GThread *eventThrdID;
+
+        std::string ssidSpecific;
+        std::atomic<bool> printLog;
     };
 
     }   // Plugin

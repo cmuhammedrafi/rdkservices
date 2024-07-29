@@ -509,6 +509,50 @@ namespace WPEFramework
     {
         NMLOG_INFO("wifi scanning completed ...");
         // TODO crate json object and send it
+        if(!NM_IS_DEVICE_WIFI(wifiDevice))
+        {
+            NMLOG_ERROR("Not a wifi object ");
+            return;
+        }
+        const GPtrArray *accessPointsArray = nm_device_wifi_get_access_points(wifiDevice);
+        for (guint i = 0; i < accessPointsArray->len; i++)
+        {
+            NMAccessPoint *ap = NULL;
+            GBytes *ssidGByte = NULL;
+            std::string ssid;
+
+            ap = (NMAccessPoint*)accessPointsArray->pdata[i];
+            ssidGByte = nm_access_point_get_ssid(ap);
+            if(ssidGByte)
+            {
+                char* ssidStr = NULL;
+                gsize len;
+                const guint8 *ssidData = static_cast<const guint8 *>(g_bytes_get_data(ssidGByte, &len));
+                ssidStr = nm_utils_ssid_to_utf8(ssidData, len);
+                if(ssidStr != NULL) {
+                    std::string ssidTmp(ssidStr, len);
+                    ssid = ssidTmp;
+                }
+                else
+                    ssid = "---";
+            }
+            else
+                ssid = "---";
+            
+            if(!_nmEventInstance->ssidSpecific.empty() && _nmEventInstance->ssidSpecific == ssid)
+            {
+                NMLOG_INFO("specific ssid: %s found", ssid.c_str());
+                //TODO create json object
+                break;
+            }
+            else if(_nmEventInstance->printLog)
+            {
+                NMLOG_INFO("ssid: %s", ssid.c_str());
+            }
+        }
+    
+        _nmEventInstance->ssidSpecific.clear();
+        _nmEventInstance->printLog = false;
     }
 
     /* legacy events */
@@ -525,6 +569,12 @@ namespace WPEFramework
     void GnomeNetworkManagerEvents::onIPAddressStatusChangedCb(std::string iface, std::string ipv4, std::string ipv6, bool acqired)
     {
         NMLOG_INFO("%s: IPv4:%s - IPv6:%s %s", iface.c_str(), ipv4.c_str(), ipv6.c_str(),acqired?"acqired":"lost");
+    }
+
+    void GnomeNetworkManagerEvents::setwifiScanOptions(std::string &ssid, bool print)
+    {
+        ssidSpecific = ssid;
+        printLog.store(print);
     }
 
     /* code need to add in the main code as modification */
