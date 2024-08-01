@@ -33,7 +33,7 @@ namespace WPEFramework
         {
 
             public:
-               static int wifiSecurityModeFromAp(guint32 flags, guint32 wpaFlags, guint32 rsnFlags);
+               static uint8_t wifiSecurityModeFromAp(guint32 flags, guint32 wpaFlags, guint32 rsnFlags);
                static std::string wifiFrequencyFromAp(guint32 apFreq);
                static JsonObject apToJsonObject(NMAccessPoint *ap);
         };

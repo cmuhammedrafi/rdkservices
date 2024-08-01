@@ -43,11 +43,11 @@ namespace WPEFramework
     {
 
     public:
-        static void onInterfaceStateChangeCb(std::string iface, std::string state);
-        static void onAddressChangeCb(std::string iface, std::string ipAddress, bool acqired, bool isIPv6);
-        static void onActiveInterfaceChangeCb(std::string newInterface);
-        static void onAvailableSSIDsCb(NMDeviceWifi *wifiDevice, GParamSpec *pspec, gpointer userData);
-        static void onWIFIStateChanged(int state);
+        static void onInterfaceStateChangeCb(uint8_t newState, std::string iface); // ReportInterfaceStateChangedEvent
+        static void onAddressChangeCb(std::string iface, std::string ipAddress, bool acqired, bool isIPv6); // ReportIPAddressChangedEvent
+        static void onActiveInterfaceChangeCb(std::string newInterface); // ReportActiveInterfaceChangedEvent
+        static void onAvailableSSIDsCb(NMDeviceWifi *wifiDevice, GParamSpec *pspec, gpointer userData); // ReportAvailableSSIDsEvent
+        static void onWIFIStateChanged(uint8_t state); // ReportWiFiStateChangedEvent
         /*legacy events*/
         static void onInterfaceStatusChangedCb(std::string iface, bool enabled);
         static void onConnectionStatusChangedCb(std::string iface, bool connected);
