@@ -75,30 +75,41 @@ namespace WPEFramework
         NMDeviceState deviceState;
         deviceState = nm_device_get_state(device);
         std::string ifname = nm_device_get_iface(device);
-        const char  *nm_device_get_ip_iface(NMDevice *device);
-        NMDeviceStateReason reason = nm_device_get_state_reason(device);
         if(ifname == nmEvents->ifnameWlan0)
         {
+            if(!NM_IS_DEVICE_WIFI(device)) {
+                NMLOG_FATAL("not a wifi device !");
+                return;
+            }
+            NMDeviceStateReason reason = nm_device_get_state_reason(device);
             std::string wifiState;
+            NMLOG_TRACE("\033[0;31m NMDeviceStateReason %d \033[0m",reason);
             switch (reason)
             {
                 case NM_DEVICE_STATE_REASON_SUPPLICANT_AVAILABLE:
+                    wifiState = "WIFI_STATE_UNINSTALLED";
                     GnomeNetworkManagerEvents::onWIFIStateChanged(Exchange::INetworkManager::WIFI_STATE_UNINSTALLED);
                     break;
                 case NM_DEVICE_STATE_REASON_SSID_NOT_FOUND:
+                    wifiState = "WIFI_STATE_SSID_NOT_FOUND";
                     GnomeNetworkManagerEvents::onWIFIStateChanged(Exchange::INetworkManager::WIFI_STATE_SSID_NOT_FOUND);
                     break;
                 case NM_DEVICE_STATE_REASON_SUPPLICANT_TIMEOUT:         // supplicant took too long to authenticate
+                case NM_DEVICE_STATE_REASON_NO_SECRETS:
+                    wifiState = "WIFI_STATE_AUTHENTICATION_FAILED";
                     GnomeNetworkManagerEvents::onWIFIStateChanged(Exchange::INetworkManager::WIFI_STATE_AUTHENTICATION_FAILED);
                     break;
                 case NM_DEVICE_STATE_REASON_SUPPLICANT_FAILED:          //  802.1x supplicant failed
+                    wifiState = "WIFI_STATE_ERROR";
                     GnomeNetworkManagerEvents::onWIFIStateChanged(Exchange::INetworkManager::WIFI_STATE_ERROR);
                     break;
                 case NM_DEVICE_STATE_REASON_SUPPLICANT_CONFIG_FAILED:   // 802.1x supplicant configuration failed
-                    GnomeNetworkManagerEvents::onWIFIStateChanged(11);
+                    wifiState = "WIFI_STATE_CONNECTION_INTERRUPTED";
+                    GnomeNetworkManagerEvents::onWIFIStateChanged(Exchange::INetworkManager::WIFI_STATE_CONNECTION_INTERRUPTED);
                     break;
                 case NM_DEVICE_STATE_REASON_SUPPLICANT_DISCONNECT:      // 802.1x supplicant disconnected
-                    GnomeNetworkManagerEvents::onWIFIStateChanged(Exchange::INetworkManager::WIFI_STATE_CONNECTION_LOST);
+                    wifiState = "WIFI_STATE_INVALID_CREDENTIALS";
+                    GnomeNetworkManagerEvents::onWIFIStateChanged(Exchange::INetworkManager::WIFI_STATE_INVALID_CREDENTIALS);
                     break;
                 default:
                 {
@@ -143,8 +154,8 @@ namespace WPEFramework
                         GnomeNetworkManagerEvents::onWIFIStateChanged(Exchange::INetworkManager::WIFI_STATE_CONNECTION_FAILED);
                         break;
                     case NM_DEVICE_STATE_NEED_AUTH:
-                        GnomeNetworkManagerEvents::onWIFIStateChanged(Exchange::INetworkManager::WIFI_STATE_CONNECTION_INTERRUPTED);
-                        wifiState = "WIFI_STATE_CONNECTION_INTERRUPTED";
+                        //GnomeNetworkManagerEvents::onWIFIStateChanged(Exchange::INetworkManager::WIFI_STATE_CONNECTION_INTERRUPTED);
+                        //wifiState = "WIFI_STATE_CONNECTION_INTERRUPTED";
                         break;
                     default:
                         wifiState = "Un handiled";
@@ -331,6 +342,31 @@ namespace WPEFramework
 
     }
 
+    static void clientStateChangedCb (NMClient *client, GParamSpec *pspec, gpointer user_data)
+    {
+
+        switch (nm_client_get_state (client)) {
+        case NM_STATE_DISCONNECTED:
+            NMLOG_WARNING("internet connection down");
+            break;
+        case NM_STATE_CONNECTED_GLOBAL:
+            NMLOG_INFO("global internet connection success");
+            break;
+        default:
+            break;
+	    }
+    }
+
+    static void managerRunningCb (NMClient *client, GParamSpec *pspec, gpointer user_data)
+    {
+        if (nm_client_get_nm_running (client)) {
+            NMLOG_INFO("network manager daemon is running");
+        } else {
+            NMLOG_FATAL("network manager daemon not running !");
+            // TODO  check need any client reconnection or not ?
+        }
+    }
+
     void* GnomeNetworkManagerEvents::networkMangerEventMonitor(void *arg)
     {
         if(arg == nullptr)
@@ -341,9 +377,11 @@ namespace WPEFramework
 
         NMEvents *nmEvents = static_cast<NMEvents *>(arg);
         primaryConnectionCb(nmEvents->client, NULL, nmEvents);
+        g_signal_connect (nmEvents->client, "notify::" NM_CLIENT_NM_RUNNING,G_CALLBACK (managerRunningCb), nmEvents);
+        g_signal_connect(nmEvents->client, "notify::" NM_CLIENT_STATE, G_CALLBACK (clientStateChangedCb),nmEvents);
         g_signal_connect(nmEvents->client, "notify::" NM_CLIENT_PRIMARY_CONNECTION, G_CALLBACK(primaryConnectionCb), nmEvents);
 
-        const GPtrArray *devices = nullptr;
+       const GPtrArray *devices = nullptr;
         devices = nm_client_get_devices(nmEvents->client);
 
         g_signal_connect(nmEvents->client, NM_CLIENT_DEVICE_ADDED, G_CALLBACK(deviceAddedCB), nmEvents);
@@ -436,7 +474,7 @@ namespace WPEFramework
             return;
         }
 
-        NMLOG_INFO("networkmanger client connection success");
+        NMLOG_INFO("networkmanger client connection success version: %s", nm_client_get_version(nmEvents.client));
 
         nmEvents.loop = g_main_loop_new(NULL, FALSE);
         if(nmEvents.loop == NULL) {
@@ -446,7 +484,7 @@ namespace WPEFramework
         _nmEventInstance = this;
 
         nmEvents.ifnameEth0 = "eth0";
-        nmEvents.ifnameWlan0 = "wlan0";
+        nmEvents.ifnameWlan0 = "wlp0s20f3";
     }
 
     /* Gnome networkmanger new events */
@@ -497,7 +535,7 @@ namespace WPEFramework
 
     void GnomeNetworkManagerEvents::onWIFIStateChanged(uint8_t state)
     {
-        NMLOG_INFO("wifi state changed - %d", state);
+        //NMLOG_TRACE("wifi state changed - %d", state);
         if(_instance != nullptr)
             _instance->ReportWiFiStateChangedEvent(static_cast<Exchange::INetworkManager::WiFiState>(state));
     }

@@ -37,5 +37,16 @@ namespace WPEFramework
                static std::string wifiFrequencyFromAp(guint32 apFreq);
                static JsonObject apToJsonObject(NMAccessPoint *ap);
         };
+
+        class nmClient
+        {
+            static getNmClient();
+
+        }
     }
 }
+
+/*
+    // Set up a timer to check the device state reason every second
+    g_timeout_add_seconds(1, check_device_state_reason, NULL);
+ */
