@@ -42,10 +42,21 @@ namespace WPEFramework
                static void apFlagsToString(guint32 flags, std::string &flagStr);
         };
 
-        class nmClient
-        {
-            static NMClient *getNmClient();
+        class NmClient {
+        public:
+            NmClient();
+            ~NmClient();
 
+            NMClient* getClientConnection();
+            void runGMainLoop(int timeoutMs);
+            void quitGMainLoop();
+
+        private:
+            static gboolean timeoutCb(gpointer data);
+
+            NMClient* nmClient;
+            GMainLoop* nmLoop;
+            GMainContext* nmContext;
         };
     }
 }

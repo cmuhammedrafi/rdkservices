@@ -266,5 +266,99 @@ namespace WPEFramework
             return Core::ERROR_NONE;
         }
 
+        NmClient::NmClient() : nmClient(nullptr), nmLoop(nullptr), nmContext(nullptr)
+        {
+            GError* error = nullptr;
+            nmClient = nm_client_new(nullptr, &error);
+            if (!nmClient) {
+                NMLOG_ERROR("Failed to create NMClient: %s", error->message);
+                g_error_free(error);
+            } else {
+                NMLOG_TRACE("NMClient created successfully");
+            }
+
+            nmContext = g_main_context_new();
+            g_main_context_push_thread_default(nmContext);
+            NMLOG_TRACE("GMainContext created and pushed as thread default");
+        }
+
+        NmClient::~NmClient()
+        {
+            quitGMainLoop();
+            g_main_context_pop_thread_default(nmContext);
+            NMLOG_TRACE("GMainContext popped from thread default");
+
+            if (nmClient) {
+                g_object_unref(nmClient);
+                nmClient = nullptr;
+                NMLOG_TRACE("NMClient unrefed and set to nullptr");
+            }
+            if (nmLoop) {
+                g_main_loop_unref(nmLoop);
+                nmLoop = nullptr;
+            }
+            if (nmContext) {
+                g_main_context_unref(nmContext);
+                nmContext = nullptr;
+            }
+        }
+
+        NMClient* NmClient::getClientConnection()
+        {
+            if (nmClient == nullptr) {
+                GError* error = nullptr;
+                nmClient = nm_client_new(nullptr, &error);
+                if (!nmClient) {
+                    NMLOG_ERROR("Failed to create NMClient: %s", error->message);
+                    g_error_free(error);
+                } else {
+                    NMLOG_TRACE("NMClient created successfully");
+                }
+            }
+
+            NMState state = nm_client_get_state(nmClient);
+            if(state != NM_STATE_UNKNOWN && state != NM_STATE_DISCONNECTED && state != NM_STATE_DISCONNECTING)
+                return nmClient;
+            else {
+                NMLOG_FATAL("NMClient client connection Error");
+                return nullptr;
+            }
+        }
+
+        void NmClient::runGMainLoop(int timeoutMs)
+        {
+            nmLoop = g_main_loop_new(nmContext, FALSE);
+            NMLOG_TRACE("GMainLoop created");
+
+            g_timeout_add(timeoutMs, timeoutCb, nmLoop);
+            NMLOG_TRACE("Timeout source added to GMainLoop for %d ms", timeoutMs);
+
+            g_main_loop_run(nmLoop);
+            NMLOG_TRACE("GMainLoop is running");
+        }
+
+        void NmClient::quitGMainLoop()
+        {
+            if (nmLoop && g_main_loop_is_running(nmLoop)) {
+                g_main_loop_quit(nmLoop);
+                NMLOG_TRACE("GMainLoop quit");
+            } else {
+                NMLOG_TRACE("GMainLoop is not running, skip quitting");
+            }
+        }
+
+        gboolean NmClient::timeoutCb(gpointer data)
+        {
+            GMainLoop* loop = static_cast<GMainLoop*>(data);
+            if (g_main_loop_is_running(loop)) {
+                g_main_loop_quit(loop);
+                NMLOG_TRACE("GMainLoop quit by timeout");
+            } else {
+                NMLOG_TRACE("GMainLoop is not running, skip quitting by timeout");
+            }
+            return FALSE; // Do not repeat the timeout
+        }
+
+
     }   // Plugin
 }   // WPEFramework
