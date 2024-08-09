@@ -41,6 +41,7 @@ namespace WPEFramework
             bool wifiDisconnect();
             bool wifiConnectedSSIDInfo(Exchange::INetworkManager::WiFiSSIDInfo &ssidinfo);
             bool wifiConnect(Exchange::INetworkManager::WiFiConnectTo wifiData);
+            bool wifiScanRequest(const Exchange::INetworkManager::WiFiFrequency frequency, std::string ssidReq = "");
             bool quit(NMDevice *wifiNMDevice);
             bool wait(GMainLoop *loop);
         private:

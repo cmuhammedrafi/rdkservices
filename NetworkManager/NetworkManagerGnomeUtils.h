@@ -39,14 +39,9 @@ namespace WPEFramework
                static void startWifiScanning(NMDevice *wifiDevice, std::string ssidReq = "");
                static void printActiveSSIDsOnly(NMDeviceWifi *wifiDevice);
                static uint32_t GetInterfacesName(string &wifiInterface, string &ethernetInterface);
-               static void apFlagsToString(guint32 flags, std::string &flagStr);
+               static std::string getSecurityModeString(guint32 flags, guint32 wpaFlags, guint32 rsnFlags);
         };
 
-        class nmClient
-        {
-            static NMClient *getNmClient();
-
-        };
     }
 }
 

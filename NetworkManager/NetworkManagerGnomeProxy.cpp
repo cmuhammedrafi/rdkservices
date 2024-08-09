@@ -431,38 +431,11 @@ namespace WPEFramework
             return rc;
         }
 
-        static void on_scan_done(GObject *source_object, GAsyncResult *result, gpointer user_data)
-        {
-            GError *error = NULL;
-            NMAccessPoint *ap = NULL;
-            JsonObject ssidObj;
-            JsonArray ssidList = JsonArray();
-            gboolean success = nm_device_wifi_request_scan_finish(NM_DEVICE_WIFI(source_object), result, &error);
-            if (success)
-            {
-                NMLOG_INFO("Wi-Fi scan request success");
-            }
-            else
-            {
-                NMLOG_ERROR("Error requesting Wi-Fi scan: %s", error->message);
-            }
-            // string json;
-            // ssidList.ToString(json);
-            // NMLOG_INFO("Scanned APIs are  = %s",json.c_str());
-            // ::_instance->ReportAvailableSSIDsEvent(json);
-            g_main_loop_quit((GMainLoop *)user_data);
-        }
-
         uint32_t NetworkManagerImplementation::StartWiFiScan(const WiFiFrequency frequency /* @in */)
         {
             uint32_t rc = Core::ERROR_RPC_CALL_FAILED;
-            GMainLoop *loop;
-            loop = g_main_loop_new(NULL, FALSE);
-            NMDevice *wifi_device;
-            wifi_device = nm_client_get_device_by_iface(client, "wlan0");
-            nm_device_wifi_request_scan_options_async(NM_DEVICE_WIFI(wifi_device), NULL, NULL, on_scan_done, loop);//TODO Explore further on the API and check whether w            which all options can be passed as Argument. Example : We can pass SSID as an option and scan for that SSID alone
-            g_main_loop_run(loop);
-            rc = Core::ERROR_NONE;
+            if(wifi->wifiScanRequest(frequency))
+                rc = Core::ERROR_NONE;
             return rc;
         }
 
