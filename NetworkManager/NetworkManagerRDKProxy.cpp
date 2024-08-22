@@ -363,6 +363,56 @@ namespace WPEFramework
         const float signalStrengthThresholdFair = -67.0f;
         NetworkManagerImplementation* _instance = nullptr;
 
+       /* Class to store and manage cached IARM data */
+        template<typename DataType>
+        class Cache {
+        public:
+            Cache() : is_set(false) {}
+
+            Cache& operator=(const DataType& value) {
+                std::lock_guard<std::mutex> lock(mutex);
+                this->value = value;
+                is_set.store(true);
+                return *this;
+            }
+
+            Cache& operator=(DataType&& value) {
+                std::lock_guard<std::mutex> lock(mutex);
+                this->value = std::move(value);
+                is_set.store(true);
+                return *this;
+            }
+
+            bool isSet() const {
+                return is_set.load();
+            }
+
+            void reset() {
+                is_set.store(false);
+            }
+
+            const DataType& getValue() const {
+                std::lock_guard<std::mutex> lock(mutex);
+                return value;
+            }
+
+            DataType& getValue() {
+                std::lock_guard<std::mutex> lock(mutex);
+                return value;
+            }
+
+        private:
+            DataType value;
+            std::atomic<bool> is_set;
+            mutable std::mutex mutex;
+        };
+
+        Cache<WiFiStatusCode_t> wifiStatusCache;
+        Cache<IARM_BUS_NetSrvMgr_Iface_Settings_t> ipv4Cache;
+        Cache<IARM_BUS_NetSrvMgr_Iface_Settings_t> ipv6Cache;
+        Cache<std::string> stbIpCache;
+        Cache<std::string> defaultIfaceCache;
+
         Exchange::INetworkManager::WiFiState to_wifi_state(WiFiStatusCode_t code) {
             switch (code)
             {
@@ -399,8 +449,8 @@ namespace WPEFramework
                     return Exchange::INetworkManager::WIFI_STATE_INVALID_CREDENTIALS;
                 case WIFI_AUTH_FAILED:
                     return Exchange::INetworkManager::WIFI_STATE_AUTHENTICATION_FAILED;
-		case WIFI_NO_SSID:
-		    return Exchange::INetworkManager::WIFI_STATE_SSID_NOT_FOUND;
+                case WIFI_NO_SSID:
+                    return Exchange::INetworkManager::WIFI_STATE_SSID_NOT_FOUND;
                 case WIFI_UNKNOWN:
                     return Exchange::INetworkManager::WIFI_STATE_ERROR;
             }
@@ -462,6 +512,12 @@ namespace WPEFramework
 
                         if(interface == "eth0" || interface == "wlan0") {
                             ::_instance->ReportIPAddressChangedEvent(interface, e->acquired, e->is_ipv6, string(e->ip_address));
+                            if(e->is_ipv6)
+                                ipv4Cache.reset();
+                            else
+                                ipv6Cache.reset();
+
+                            stbIpCache.reset();
                         }
                         break;
                     }
@@ -479,6 +535,7 @@ namespace WPEFramework
                             newInterface == ""; /* assigning "null" if the interface is not eth0 or wlan0 */
 
                         ::_instance->ReportActiveInterfaceChangedEvent(oldInterface, newInterface);
+                        defaultIfaceCache.reset();
                         break;
                     }
                     case IARM_BUS_WIFI_MGR_EVENT_onAvailableSSIDs:
@@ -508,6 +565,7 @@ namespace WPEFramework
                         IARM_BUS_WiFiSrvMgr_EventData_t* e = (IARM_BUS_WiFiSrvMgr_EventData_t *) data;
                         Exchange::INetworkManager::WiFiState state = Exchange::INetworkManager::WIFI_STATE_DISCONNECTED;
                         NMLOG_INFO("Event IARM_BUS_WIFI_MGR_EVENT_onWIFIStateChanged received; state=%d", e->data.wifiStateChange.state);
+                        wifiStatusCache = data.wifiStateChange.state;
                         state = to_wifi_state(e->data.wifiStateChange.state);
                         ::_instance->ReportWiFiStateChangedEvent(state);
                         break;
@@ -518,6 +576,7 @@ namespace WPEFramework
                         Exchange::INetworkManager::WiFiState state = errorcode_to_wifi_state(e->data.wifiError.code);
                         NMLOG_INFO("Event IARM_BUS_WIFI_MGR_EVENT_onError received; code=%d", e->data.wifiError.code);
                         ::_instance->ReportWiFiStateChangedEvent(state);
+                        wifiStatusCache.reset();
                         break;
                     }
                     default:
@@ -664,12 +723,20 @@ namespace WPEFramework
         uint32_t NetworkManagerImplementation::GetPrimaryInterface (string& interface /* @out */)
         {
             LOG_ENTRY_FUNCTION();
+            if(defaultIfaceCache.isSet())
+            {
+                interface = defaultIfaceCache.getValue();
+                NMLOG_INFO ("default interface cahched value = %s", interface.c_str());
+                return Core::ERROR_NONE;
+            }
+
             uint32_t rc = Core::ERROR_RPC_CALL_FAILED;
             IARM_BUS_NetSrvMgr_DefaultRoute_t defaultRoute = {0};
             if (IARM_RESULT_SUCCESS == IARM_Bus_Call(IARM_BUS_NM_SRV_MGR_NAME, IARM_BUS_NETSRVMGR_API_getDefaultInterface, (void*)&defaultRoute, sizeof(defaultRoute)))
             {
                 NMLOG_INFO ("Call to %s for %s returned interface = %s, gateway = %s", IARM_BUS_NM_SRV_MGR_NAME, IARM_BUS_NETSRVMGR_API_getDefaultInterface, defaultRoute.interface, defaultRoute.gateway);
-                interface = m_defaultInterface = defaultRoute.interface;
+                interface = defaultRoute.interface;
+                defaultIfaceCache = interface;
                 rc = Core::ERROR_NONE;
             }
             else
@@ -802,7 +869,6 @@ namespace WPEFramework
             return prefix_len;
         }
 
-
         /* @brief Get IP Address Of the Interface */
         uint32_t NetworkManagerImplementation::GetIPSettings(const string& interface /* @in */, const string& ipversion /* @in */, IPAddressInfo& result /* @out */)
         {
@@ -818,10 +884,37 @@ namespace WPEFramework
 
             strncpy(iarmData.ipversion, ipversion.c_str(), 16);
             iarmData.isSupported = true;
-            NMLOG_INFO("NetworkManagerImplementation::GetIPSettings - Before Calling IARM");
-            if (IARM_RESULT_SUCCESS == IARM_Bus_Call (IARM_BUS_NM_SRV_MGR_NAME, IARM_BUS_NETSRVMGR_API_getIPSettings, (void *)&iarmData, sizeof(iarmData)))
+            if ("wlan0" == interface && wifiStatusCache.isSet() && wifiStatusCache.getValue() != WIFI_CONNECTED)
             {
-                NMLOG_INFO("NetworkManagerImplementation::GetIPSettings - IARM Success.. Filling the data");
+                // TODO fix netsrvmgr will return ip even after wifi disconnected
+                NMLOG_WARNING("wifi not connected so address will be empty");
+                rc = Core::ERROR_NONE;
+            }
+            else if(ipversion == "IPV4" && ipv4Cache.isSet() && interface == ipv4Cache.getValue().interface)
+            {
+                NMLOG_INFO("Reading ipv4 cached value");
+                memcpy(&iarmData, ipv4Cache.getValue(), sizeof(IARM_BUS_NetSrvMgr_Iface_Settings_t));
+                rc = Core::ERROR_NONE;
+            }
+            else if(ipversion == "IPV6" && ipv6Cache.isSet() && interface == ipv4Cache.getValue().interface)
+            {
+                NMLOG_INFO("Reading ipv6 cached value");
+                memcpy(&iarmData, ipv4Cache.getValue(), sizeof(IARM_BUS_NetSrvMgr_Iface_Settings_t));
+                rc = Core::ERROR_NONE;
+            }
+            else
+            {
+                if (IARM_RESULT_SUCCESS == IARM_Bus_Call (IARM_BUS_NM_SRV_MGR_NAME, IARM_BUS_NETSRVMGR_API_getIPSettings, (void *)&iarmData, sizeof(iarmData)))
+                {
+                    NMLOG_INFO("GetIPSettings - IARM Success");
+                    rc = Core::ERROR_NONE;
+                }
+                else
+                    NMLOG_ERROR("GetIPSettings - Calling IARM Failed");
+            }
+
+            if (rc == Core::ERROR_NONE)
+            {
                 result.m_ipAddrType     = string(iarmData.ipversion);
                 result.m_autoConfig     = iarmData.autoconfig;
                 result.m_dhcpServer     = string(iarmData.dhcpserver,MAX_IP_ADDRESS_LEN - 1);
@@ -829,17 +922,11 @@ namespace WPEFramework
                 result.m_ipAddress      = string(iarmData.ipaddress,MAX_IP_ADDRESS_LEN - 1);
                 if (0 == strcasecmp("ipv4", iarmData.ipversion))
                     result.m_prefix = NetmaskToPrefix(iarmData.netmask);
-		else if (0 == strcasecmp("ipv6", iarmData.ipversion))
+                else if (0 == strcasecmp("ipv6", iarmData.ipversion))
                     result.m_prefix = std::atoi(iarmData.netmask);
                 result.m_gateway        = string(iarmData.gateway,MAX_IP_ADDRESS_LEN - 1);
                 result.m_primaryDns     = string(iarmData.primarydns,MAX_IP_ADDRESS_LEN - 1);
                 result.m_secondaryDns   = string(iarmData.secondarydns,MAX_IP_ADDRESS_LEN - 1);
-                NMLOG_INFO("NetworkManagerImplementation::GetIPSettings - IARM Success.. Filled the data");
-                rc = Core::ERROR_NONE;
-            }
-            else
-            {
-                NMLOG_ERROR("NetworkManagerImplementation::GetIPSettings - Calling IARM Failed");
             }
 
             return rc;
@@ -1317,6 +1404,7 @@ const string CIDR_PREFIXES[CIDR_NETMASK_IP_LEN] = {
 
             if(IARM_RESULT_SUCCESS == IARM_Bus_Call(IARM_BUS_NM_SRV_MGR_NAME, IARM_BUS_WIFI_MGR_API_getCurrentState, (void *)&param, sizeof(param)))
             {
+                wifiStatusCache = param.data.wifiStatus;
                 state = to_wifi_state(param.data.wifiStatus);
                 rc = Core::ERROR_NONE;
             }
