@@ -565,7 +565,7 @@ namespace WPEFramework
                         IARM_BUS_WiFiSrvMgr_EventData_t* e = (IARM_BUS_WiFiSrvMgr_EventData_t *) data;
                         Exchange::INetworkManager::WiFiState state = Exchange::INetworkManager::WIFI_STATE_DISCONNECTED;
                         NMLOG_INFO("Event IARM_BUS_WIFI_MGR_EVENT_onWIFIStateChanged received; state=%d", e->data.wifiStateChange.state);
-                        wifiStatusCache = data.wifiStateChange.state;
+                        wifiStatusCache = e->data.wifiStateChange.state;
                         state = to_wifi_state(e->data.wifiStateChange.state);
                         ::_instance->ReportWiFiStateChangedEvent(state);
                         break;
@@ -893,13 +893,13 @@ namespace WPEFramework
             else if(ipversion == "IPV4" && ipv4Cache.isSet() && interface == ipv4Cache.getValue().interface)
             {
                 NMLOG_INFO("Reading ipv4 cached value");
-                memcpy(&iarmData, ipv4Cache.getValue(), sizeof(IARM_BUS_NetSrvMgr_Iface_Settings_t));
+                memcpy(&iarmData, &ipv4Cache.getValue(), sizeof(IARM_BUS_NetSrvMgr_Iface_Settings_t));
                 rc = Core::ERROR_NONE;
             }
             else if(ipversion == "IPV6" && ipv6Cache.isSet() && interface == ipv4Cache.getValue().interface)
             {
                 NMLOG_INFO("Reading ipv6 cached value");
-                memcpy(&iarmData, ipv4Cache.getValue(), sizeof(IARM_BUS_NetSrvMgr_Iface_Settings_t));
+                memcpy(&iarmData, &ipv6Cache.getValue(), sizeof(IARM_BUS_NetSrvMgr_Iface_Settings_t));
                 rc = Core::ERROR_NONE;
             }
             else
