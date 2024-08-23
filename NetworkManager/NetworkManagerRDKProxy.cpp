@@ -363,54 +363,9 @@ namespace WPEFramework
         const float signalStrengthThresholdFair = -67.0f;
         NetworkManagerImplementation* _instance = nullptr;
 
-       /* Class to store and manage cached IARM data */
-        template<typename DataType>
-        class Cache {
-        public:
-            Cache() : is_set(false) {}
-
-            Cache& operator=(const DataType& value) {
-                std::lock_guard<std::mutex> lock(mutex);
-                this->value = value;
-                is_set.store(true);
-                return *this;
-            }
-
-            Cache& operator=(DataType&& value) {
-                std::lock_guard<std::mutex> lock(mutex);
-                this->value = std::move(value);
-                is_set.store(true);
-                return *this;
-            }
-
-            bool isSet() const {
-                return is_set.load();
-            }
-
-            void reset() {
-                is_set.store(false);
-            }
-
-            const DataType& getValue() const {
-                std::lock_guard<std::mutex> lock(mutex);
-                return value;
-            }
-
-            DataType& getValue() {
-                std::lock_guard<std::mutex> lock(mutex);
-                return value;
-            }
-
-        private:
-            DataType value;
-            std::atomic<bool> is_set;
-            mutable std::mutex mutex;
-        };
-
         Cache<WiFiStatusCode_t> wifiStatusCache;
         Cache<IARM_BUS_NetSrvMgr_Iface_Settings_t> ipv4Cache;
         Cache<IARM_BUS_NetSrvMgr_Iface_Settings_t> ipv6Cache;
-        Cache<std::string> stbIpCache;
         Cache<std::string> defaultIfaceCache;
 
         Exchange::INetworkManager::WiFiState to_wifi_state(WiFiStatusCode_t code) {
@@ -516,8 +471,6 @@ namespace WPEFramework
                                 ipv4Cache.reset();
                             else
                                 ipv6Cache.reset();
-
-                            stbIpCache.reset();
                         }
                         break;
                     }
@@ -907,6 +860,11 @@ namespace WPEFramework
                 if (IARM_RESULT_SUCCESS == IARM_Bus_Call (IARM_BUS_NM_SRV_MGR_NAME, IARM_BUS_NETSRVMGR_API_getIPSettings, (void *)&iarmData, sizeof(iarmData)))
                 {
                     NMLOG_INFO("GetIPSettings - IARM Success");
+                    if(string(iarmData.ipversion) == "IPV4")
+                        ipv4Cache = iarmData;
+                    else
+                        ipv6Cache = iarmData;
+
                     rc = Core::ERROR_NONE;
                 }
                 else

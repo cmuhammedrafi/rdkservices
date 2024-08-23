@@ -125,6 +125,50 @@ namespace WPEFramework
             Core::JSON::DecUInt32 loglevel;
         };
 
+        /* Class to store and manage cached data */
+        template<typename DataType>
+        class Cache {
+        public:
+            Cache() : is_set(false) {}
+
+            Cache& operator=(const DataType& value) {
+                std::lock_guard<std::mutex> lock(mutex);
+                this->value = value;
+                is_set.store(true);
+                return *this;
+            }
+
+            Cache& operator=(DataType&& value) {
+                std::lock_guard<std::mutex> lock(mutex);
+                this->value = std::move(value);
+                is_set.store(true);
+                return *this;
+            }
+
+            bool isSet() const {
+                return is_set.load();
+            }
+
+            void reset() {
+                is_set.store(false);
+            }
+
+            const DataType& getValue() const {
+                std::lock_guard<std::mutex> lock(mutex);
+                return value;
+            }
+
+            DataType& getValue() {
+                std::lock_guard<std::mutex> lock(mutex);
+                return value;
+            }
+
+        private:
+            DataType value;
+            std::atomic<bool> is_set;
+            mutable std::mutex mutex;
+        };
+
         public:
             NetworkManagerImplementation();
             ~NetworkManagerImplementation() override;
