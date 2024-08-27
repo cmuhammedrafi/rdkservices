@@ -180,8 +180,8 @@ jobs:
       - name: Build NetworkManager
         run: >
           cmake
-          -S "${{github.workspace}}/rdkservices/NetworkManager"
-          -B build/rdkservices/NetworkManager
+          -S "${{github.workspace}}/rdkservices"
+          -B build/rdkservices
           -DCMAKE_TOOLCHAIN_FILE="${{ env.TOOLCHAIN_FILE }}"
           -DCMAKE_INSTALL_PREFIX="${{github.workspace}}/install/usr"
           -DCMAKE_MODULE_PATH="${{github.workspace}}/install/tools/cmake"
@@ -202,6 +202,6 @@ jobs:
           -DPLUGIN_NETWORKMANAGER=ON
           -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
           &&
-          cmake --build build/rdkservices/NetworkManager -j16
+          cmake --build build/rdkservices -j16
           &&
-          cmake --install build/rdkservices/NetworkManager
+          cmake --install build/rdkservices
