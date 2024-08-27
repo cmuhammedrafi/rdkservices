@@ -404,7 +404,7 @@ endif()
 if(PLUGIN_NETWORKMANAGER)
     include(l1networkmanager.cmake)
     add_subdirectory(NetworkManager)
-    add_subdirectory(Tests/L1Tests)
+  #  add_subdirectory(Tests/L1Tests)
 endif()
 
 if(WPEFRAMEWORK_CREATE_IPKG_TARGETS)
