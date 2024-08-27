@@ -153,7 +153,7 @@ jobs:
       - name: Generate external headers
         # Empty headers to mute errors
         run: >
-          cd "${{github.workspace}}/rdkservices/Tests/"
+          cd "${{github.workspace}}/rdkservices/NetworkManager/Tests/"
           &&
           mkdir -p
           headers
@@ -171,17 +171,17 @@ jobs:
   
       - name: Set clang toolchain
         if: ${{ matrix.compiler == 'clang' }}
-        run: echo "TOOLCHAIN_FILE=${{github.workspace}}/rdkservices/Tests/clang.cmake" >> $GITHUB_ENV
+        run: echo "TOOLCHAIN_FILE=${{github.workspace}}/rdkservices/NetworkManager/Tests/clang.cmake" >> $GITHUB_ENV
 
       - name: Set gcc/with-coverage toolchain
         if: ${{ matrix.compiler == 'gcc' && matrix.coverage == 'with-coverage' && !env.ACT }}
-        run: echo "TOOLCHAIN_FILE=${{github.workspace}}/rdkservices/Tests/gcc-with-coverage.cmake" >> $GITHUB_ENV
+        run: echo "TOOLCHAIN_FILE=${{github.workspace}}/rdkservices/NetworkManager/Tests/gcc-with-coverage.cmake" >> $GITHUB_ENV
 
       - name: Build NetworkManager
         run: >
           cmake
-          -S "${{github.workspace}}/rdkservices"
-          -B build/rdkservices
+          -S "${{github.workspace}}/rdkservices/NetworkManager"
+          -B build/rdkservices/NetworkManager
           -DCMAKE_TOOLCHAIN_FILE="${{ env.TOOLCHAIN_FILE }}"
           -DCMAKE_INSTALL_PREFIX="${{github.workspace}}/install/usr"
           -DCMAKE_MODULE_PATH="${{github.workspace}}/install/tools/cmake"
@@ -189,9 +189,9 @@ jobs:
           -fprofile-arcs
           -ftest-coverage
           -DEXCEPTIONS_ENABLE=ON
-          -I ${{github.workspace}}/Tests/headers
-          -I ${{github.workspace}}/Tests/headers/rdk/iarmbus
-          -I ${{github.workspace}}/Tests/headers/network
+          -I ${{github.workspace}}/rdkservices/NetworkManager/Tests/headers
+          -I ${{github.workspace}}/rdkservices/NetworkManager/Tests/headers/rdk/iarmbus
+          -I ${{github.workspace}}/rdkservices/NetworkManager/Tests/headers/network
           -Wall -Werror -Wno-error=format=
           -Wl,-wrap,system -Wl,-wrap,popen -Wl,-wrap,syslog"
           -DCOMCAST_CONFIG=OFF
@@ -202,6 +202,6 @@ jobs:
           -DPLUGIN_NETWORKMANAGER=ON
           -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
           &&
-          cmake --build build/rdkservices -j16
+          cmake --build build/rdkservices/NetworkManager -j16
           &&
-          cmake --install build/rdkservices
+          cmake --install build/rdkservices/NetworkManager
