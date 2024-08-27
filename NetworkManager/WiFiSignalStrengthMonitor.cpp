@@ -27,7 +27,7 @@ namespace WPEFramework
             FILE *fp = popen(command, "r");
             if (!fp)
             {
-                NMLOG_ERROR("Failed in getting output from command %s \n",command);
+                NMLOG_ERROR("Failed in getting output from command %s",command);
                 return keystr;
             }
 
@@ -99,7 +99,6 @@ namespace WPEFramework
             isRunning = true;
             monitorThread = std::thread(&WiFiSignalStrengthMonitor::monitorThreadFunction, this, interval);
             monitorThread.detach();
-            std::thread::id threadId = monitorThread.get_id();
             NMLOG_INFO("Thread started with interval: %d seconds", interval);
         }
 
