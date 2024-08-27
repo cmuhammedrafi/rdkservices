@@ -2,8 +2,6 @@
 #include "NetworkManagerConnectivity.h"
 #include "WiFiSignalStrengthMonitor.h"
 #include "libIBus.h"
-#include "UtilsIarm.h"
-#include "libIARM.h"
 
 using namespace WPEFramework;
 using namespace WPEFramework::Plugin;
