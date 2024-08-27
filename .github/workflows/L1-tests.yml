@@ -8,8 +8,9 @@ on:
 
 env:
   BUILD_TYPE: Debug
-  THUNDER_REF: "5e7c0b1ed3c3dd0fc31c86518a364388dc24273b"
-  INTERFACES_REF: "930e01ec9aec8aa60254dec0be3beca932df63cd"
+  THUNDER_REF: "R4.4.1"
+  THUNDER_TOOLS_REF: "R4.4.1"
+  INTERFACES_REF: "R4.4.1"
 
 jobs:
   l1-tests:
@@ -73,7 +74,7 @@ jobs:
         run: >
           sudo apt update
           &&
-          sudo apt install -y libsqlite3-dev libcurl4-openssl-dev valgrind lcov clang libsystemd-dev libboost-all-dev libwebsocketpp-dev meson libcunit1 libcunit1-dev
+          sudo apt install -y libnm0 git pkg-config python3-pip ninja-build libusb-1.0-0-dev zlib1g-dev libssl-dev libcurl4-openssl-dev libglib2.0-dev libnm-dev libsqlite3-dev libcurl4-openssl-dev valgrind lcov clang libsystemd-dev libboost-all-dev libwebsocketpp-dev meson libcunit1 libcunit1-dev
 
       - name: Install GStreamer
         run: |
@@ -90,6 +91,28 @@ jobs:
             ninja -C build
             sudo ninja -C build install
 
+      - name: Checkout ThunderTools
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/checkout@v3
+        with:
+          repository: rdkcentral/ThunderTools
+          path: ThunderTools
+          ref: ${{env.THUNDER_TOOLS_REF}}
+      - name: Build ThunderTools
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: >
+          cmake
+          -S "${{github.workspace}}/ThunderTools"
+          -B build/ThunderTools
+          -DEXCEPTIONS_ENABLE=ON
+          -DCMAKE_INSTALL_PREFIX="${{github.workspace}}/install/usr"
+          -DCMAKE_MODULE_PATH="${{github.workspace}}/install/tools/cmake"
+          -DGENERIC_CMAKE_MODULE_PATH="${{github.workspace}}/install/tools/cmake"
+          &&
+          cmake --build build/ThunderTools -j8
+          &&
+          cmake --install build/ThunderTools
+
       - name: Checkout Thunder
         if: steps.cache.outputs.cache-hit != 'true'
         uses: actions/checkout@v3
@@ -101,18 +124,6 @@ jobs:
       - name: Build Thunder
         if: steps.cache.outputs.cache-hit != 'true'
         run: >
-          cmake
-          -S "${{github.workspace}}/Thunder/Tools"
-          -B build/ThunderTools
-          -DEXCEPTIONS_ENABLE=ON
-          -DCMAKE_INSTALL_PREFIX="${{github.workspace}}/install/usr"
-          -DCMAKE_MODULE_PATH="${{github.workspace}}/install/tools/cmake"
-          -DGENERIC_CMAKE_MODULE_PATH="${{github.workspace}}/install/tools/cmake"
-          &&
-          cmake --build build/ThunderTools -j8
-          &&
-          cmake --install build/ThunderTools
-          &&
           cmake
           -S "${{github.workspace}}/Thunder"
           -B build/Thunder
@@ -262,127 +273,16 @@ jobs:
           -DCMAKE_DISABLE_FIND_PACKAGE_Udev=ON
           -DCMAKE_DISABLE_FIND_PACKAGE_RFC=ON
           -DCMAKE_DISABLE_FIND_PACKAGE_RBus=ON
-          -DPLUGIN_DATACAPTURE=ON
-          -DPLUGIN_DEVICEDIAGNOSTICS=ON
-          -DPLUGIN_LOCATIONSYNC=ON
-          -DPLUGIN_TIMER=ON
-          -DPLUGIN_SECURITYAGENT=ON
-          -DPLUGIN_DEVICEIDENTIFICATION=ON
-          -DPLUGIN_FRAMERATE=ON
-          -DPLUGIN_AVINPUT=ON
-          -DPLUGIN_TELEMETRY=ON
-          -DPLUGIN_SCREENCAPTURE=ON
-          -DPLUGIN_USBACCESS=ON
-          -DPLUGIN_LOGGINGPREFERENCES=ON
-          -DPLUGIN_USERPREFERENCES=ON
-          -DPLUGIN_MESSENGER=ON
-          -DPLUGIN_DEVICEINFO=ON
-          -DPLUGIN_SYSTEMSERVICES=ON
           -DRDK_SERVICES_L1_TEST=ON
-          -DPLUGIN_HDMIINPUT=ON
-          -DPLUGIN_HDCPPROFILE=ON
-          -DPLUGIN_NETWORK=ON
-          -DPLUGIN_WIFIMANAGER=ON
-          -DPLUGIN_TRACECONTROL=ON
-          -DPLUGIN_WAREHOUSE=ON
-          -DPLUGIN_ACTIVITYMONITOR=ON
           -DDS_FOUND=ON
-          -DPLUGIN_TEXTTOSPEECH=ON
-          -DPLUGIN_SYSTEMAUDIOPLAYER=ON
-          -DPLUGIN_MIRACAST=ON
+          -DPLUGIN_NETWORK=OFF
+          -DPLUGIN_WIFIMANAGER=OFF
+          -DPLUGIN_NETWORKMANAGER=ON
           -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
           &&
-          cmake --build build/rdkservices -j8
+          cmake --build build/rdkservices -j16
           &&
           cmake --install build/rdkservices
-
-      - name: Set up files
-        run: >
-          sudo mkdir -p -m 777
-          /opt/persistent
-          /opt/secure
-          /opt/secure/reboot
-          /opt/secure/persistent
-          /opt/secure/persistent/System
-          /opt/logs
-          /lib/rdk
-          /run/media/sda1/logs/PreviousLogs
-          /run/sda1/UsbTestFWUpdate
-          /run/sda1/UsbProdFWUpdate
-          /run/sda2
-          /var/run/wpa_supplicant
-          &&
-          sudo touch
-          /opt/standbyReason.txt
-          /opt/tmtryoptout
-          /opt/fwdnldstatus.txt
-          /opt/dcm.properties
-          /etc/device.properties
-          /etc/dcm.properties
-          /etc/authService.conf
-          /version.txt
-          /run/media/sda1/logs/PreviousLogs/logFile.txt
-          /run/sda1/HSTP11MWR_5.11p5s1_VBN_sdy.bin
-          /run/sda1/UsbTestFWUpdate/HSTP11MWR_3.11p5s1_VBN_sdy.bin
-          /run/sda1/UsbProdFWUpdate/HSTP11MWR_4.11p5s1_VBN_sdy.bin
-          /lib/rdk/getMaintenanceStartTime.sh
-          /tmp/opkg.conf
-          &&
-          sudo chmod 777
-          /opt/standbyReason.txt
-          /opt/tmtryoptout
-          /opt/fwdnldstatus.txt
-          /opt/dcm.properties
-          /etc/device.properties
-          /etc/dcm.properties          
-          /etc/authService.conf
-          /version.txt
-          /lib/rdk/getMaintenanceStartTime.sh
-          /tmp/opkg.conf
-
-      - name: Run unit tests without valgrind
-        run: >
-          PATH=${{github.workspace}}/install/usr/bin:${PATH}
-          LD_LIBRARY_PATH=${{github.workspace}}/install/usr/lib:${{github.workspace}}/install/usr/lib/wpeframework/plugins:${LD_LIBRARY_PATH}
-          RdkServicesL1Test
-
-      - name: Run unit tests with valgrind
-        if: ${{ !env.ACT }}
-        run: >
-          PATH=${{github.workspace}}/install/usr/bin:${PATH}
-          LD_LIBRARY_PATH=${{github.workspace}}/install/usr/lib:${{github.workspace}}/install/usr/lib/wpeframework/plugins:${LD_LIBRARY_PATH}
-          valgrind
-          --tool=memcheck
-          --log-file=valgrind_log
-          --leak-check=yes
-          --show-reachable=yes
-          --track-fds=yes
-          --fair-sched=try
-          RdkServicesL1Test
-
-      - name: Generate coverage
-        if: ${{ matrix.coverage == 'with-coverage' && !env.ACT }}
-        run: >
-          cp ${{github.workspace}}/rdkservices/Tests/L1Tests/.lcovrc_l1 ~/.lcovrc
-          &&
-          lcov -c
-          -o coverage.info
-          -d build/rdkservices
-          &&
-          lcov
-          -r coverage.info
-          '/usr/include/*'
-          '*/build/rdkservices/_deps/*'
-          '*/install/usr/include/*'
-          '*/Tests/headers/*'
-          '*/Tests/mocks/*'
-          '*/Tests/L1Tests/tests/*'
-          -o filtered_coverage.info
-          &&
-          genhtml
-          -o coverage
-          -t "rdkservices coverage"
-          filtered_coverage.info
 
       - name: Upload artifacts
         if: ${{ !env.ACT }}

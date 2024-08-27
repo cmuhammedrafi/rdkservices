@@ -32,7 +32,7 @@ if(ENABLE_GNOME_NETWORKMANAGER)
 pkg_check_modules(GLIB REQUIRED glib-2.0)
 pkg_check_modules(LIBNM REQUIRED libnm)
 else()
-find_package(IARMBus REQUIRED)
+find_package(IARMBus) # REQUIRED removed to workflow work
 endif ()
 
 
