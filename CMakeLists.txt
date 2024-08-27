@@ -402,7 +402,7 @@ if(PLUGIN_SHAREDSTORAGE)
 endif()
 
 if(PLUGIN_NETWORKMANAGER)
-    include(l1networkmanager.cmake)
+    include(NetworkManager/l1networkmanager.cmake)
     add_subdirectory(NetworkManager)
 endif()
 
